@@ -52,9 +52,13 @@ def plot_board_rank(board_rank_data, periods, title):
     ax.legend()
     st.pyplot(fig)
 
-# 获取北向持股个股排行中的增持估计总市值
+# 获取并计算北向持股个股排行中的增持估计总市值
 st.subheader("北向持股个股增持估计-市值总和")
+
+# 获取 "今日排行" 数据
 stock_today_data = ak.stock_hsgt_hold_stock_em(market="北向", indicator="今日排行")
+
+# 计算增持估计-市值总和
 total_increase_value = stock_today_data['今日增持估计-市值'].sum()
 st.write(f"北向持股个股增持估计的总市值为：{total_increase_value:.2f} 万元")
 
