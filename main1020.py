@@ -55,7 +55,7 @@ def plot_board_rank(board_rank_data, periods, title):
 # 获取北向持股个股排行中的增持估计总市值
 st.subheader("北向持股个股增持估计-市值总和")
 stock_today_data = ak.stock_hsgt_hold_stock_em(market="北向", indicator="今日排行")
-total_increase_value = stock_today_data['增持估计-市值'].sum()
+total_increase_value = stock_today_data['今日增持估计-市值'].sum()
 st.write(f"北向持股个股增持估计的总市值为：{total_increase_value:.2f} 万元")
 
 # 添加板块选择的按钮
