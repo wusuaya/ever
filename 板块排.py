@@ -1,10 +1,11 @@
 import streamlit as st
 import akshare as ak
 import matplotlib.pyplot as plt
+from matplotlib import font_manager
 from datetime import datetime, timedelta
 
-# 设置字体，确保不同系统可以正确显示中文
-plt.rcParams['font.sans-serif'] = ['Arial']  # 如果SimHei不可用，可以尝试Arial
+# 尝试加载 DejaVu Sans 字体，确保系统兼容性
+plt.rcParams['font.sans-serif'] = ['DejaVu Sans']  # 使用DejaVu Sans显示中文
 plt.rcParams['axes.unicode_minus'] = False    # 解决坐标轴负号显示问题
 
 # 获取日期范围的选择
