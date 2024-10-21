@@ -5,7 +5,7 @@ from matplotlib import font_manager as fm
 from datetime import datetime, timedelta
 
 # 手动加载SimHei字体
-font_path = "./SimHei.ttf"  # 确保字体文件路径正确
+font_path = "./SIMHEI.ttf"  # 确保字体文件路径正确
 my_font = fm.FontProperties(fname=font_path)
 
 # 设置字体参数
