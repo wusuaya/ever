@@ -3,8 +3,8 @@ import akshare as ak
 import matplotlib.pyplot as plt
 from datetime import datetime, timedelta
 
-# 设置字体，确保系统上有SimHei字体或其他支持中文的字体
-plt.rcParams['font.sans-serif'] = ['SimHei']  # 使用SimHei字体显示中文
+# 设置字体，确保不同系统可以正确显示中文
+plt.rcParams['font.sans-serif'] = ['Arial']  # 如果SimHei不可用，可以尝试Arial
 plt.rcParams['axes.unicode_minus'] = False    # 解决坐标轴负号显示问题
 
 # 获取日期范围的选择
@@ -28,16 +28,16 @@ selected_days = days_dict[date_range]
 end_date = datetime.now().strftime("%Y%m%d")
 start_date = (datetime.now() - timedelta(days=selected_days)).strftime("%Y%m%d")
 
-# 获取概念板块数据
+# 设置标题
 st.title(f"东方财富概念板块成交额与涨幅 - 最近{selected_days}天")
 
 # 获取概念板块数据
 stock_board_concept_name_em_df = ak.stock_board_concept_name_em()
 
-# 去掉“昨日涨停”和“百元股”板块
+# 去掉特定的板块名称
+excluded_boards = ['昨日连板', '昨日涨停', '昨日连板_含一字', '昨日涨停_含一字', '百元股']
 filtered_boards = stock_board_concept_name_em_df[
-    (~stock_board_concept_name_em_df['板块名称'].str.contains('昨日涨停')) &
-    (~stock_board_concept_name_em_df['板块名称'].str.contains('百元股'))
+    (~stock_board_concept_name_em_df['板块名称'].str.contains('|'.join(excluded_boards)))
 ].head(10)
 
 # 1. 绘制成交额和涨幅折线图
@@ -94,3 +94,4 @@ for index, row in filtered_boards.iterrows():
         top_10_by_volume = stock_board_concept_cons_em_df.sort_values(by='成交额', ascending=False).head(10)
         st.write(f"{board_name} 成交额前十成分股")
         st.dataframe(top_10_by_volume[['名称', '代码', '成交额', '涨跌幅']])
+
