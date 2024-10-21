@@ -1,11 +1,16 @@
 import streamlit as st
 import akshare as ak
 import matplotlib.pyplot as plt
+from matplotlib import font_manager as fm
 from datetime import datetime, timedelta
 
-# 设置字体，确保系统上有SimHei字体或其他支持中文的字体
-plt.rcParams['font.sans-serif'] = ['SimHei']  # 使用SimHei字体显示中文
-plt.rcParams['axes.unicode_minus'] = False    # 解决坐标轴负号显示问题
+# 手动加载SimHei字体
+font_path = "./simhei.ttf"  # 确保字体文件路径正确
+my_font = fm.FontProperties(fname=font_path)
+
+# 设置字体参数
+plt.rcParams['font.sans-serif'] = [my_font.get_name()]  # 使用加载的字体
+plt.rcParams['axes.unicode_minus'] = False  # 解决坐标轴负号显示问题
 
 # 定义绘制概念板块排名的函数
 def show_board_ranking():
