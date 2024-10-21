@@ -2,5 +2,3 @@ streamlit
 akshare
 pandas
 matplotlib
-matplotlib.font_manager
-matplotlib.pyplot 
