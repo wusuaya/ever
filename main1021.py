@@ -6,7 +6,7 @@ import matplotlib.font_manager as fm
 import os
 
 # 加载项目目录中的字体文件
-font_path = os.path.join(os.getcwd(), "SimHei.ttf")  # 确保字体文件在当前工作目录
+font_path = os.path.join(os.getcwd(), "NotoSansSC-VariableFont_wght.ttf")  # 确保字体文件在当前工作目录
 if not os.path.exists(font_path):
     st.error(f"字体文件未找到：{font_path}")
 else:
