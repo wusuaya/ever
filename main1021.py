@@ -6,7 +6,7 @@ import matplotlib.font_manager as fm
 import os
 
 # 设置字体文件名
-FONT_FILENAME = "NotoSansSC-VariableFont_wght.ttf"
+FONT_FILENAME = "NotoSansMonoCJKsc-Regular.otf"
 
 # 构建字体文件路径，确保字体文件在项目根目录中
 font_path = os.path.join(os.getcwd(), FONT_FILENAME)
