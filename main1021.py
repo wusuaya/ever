@@ -1,15 +1,14 @@
 import streamlit as st
 import akshare as ak
 import matplotlib.pyplot as plt
-from matplotlib import font_manager as fm
 from datetime import datetime, timedelta
+import matplotlib.font_manager as fm
+import os
 
-# 手动加载SimHei字体
-font_path = "./SIMHEI.ttf"  # 确保字体文件路径正确
-my_font = fm.FontProperties(fname=font_path)
-
-# 设置字体参数
-plt.rcParams['font.sans-serif'] = [my_font.get_name()]  # 使用加载的字体
+# 加载项目目录中的字体文件
+font_path = os.path.join(os.path.dirname(__file__), "NotoSansCJKsc-Regular.otf")
+font_prop = fm.FontProperties(fname=font_path)
+plt.rcParams['font.family'] = font_prop.get_name()
 plt.rcParams['axes.unicode_minus'] = False  # 解决坐标轴负号显示问题
 
 # 定义绘制概念板块排名的函数
@@ -49,29 +48,39 @@ def show_board_ranking():
     for index, row in filtered_boards.iterrows():
         board_name = row['板块名称']
         # 获取板块的历史数据
-        stock_board_concept_hist_em_df = ak.stock_board_concept_hist_em(symbol=board_name, period="daily", 
-                                                                       start_date=start_date, end_date=end_date, adjust="")
-        
+        stock_board_concept_hist_em_df = ak.stock_board_concept_hist_em(
+            symbol=board_name, period="daily",
+            start_date=start_date, end_date=end_date, adjust=""
+        )
+
         # 绘制成交额折线图
-        ax1.plot(stock_board_concept_hist_em_df['日期'], stock_board_concept_hist_em_df['成交额'], label=board_name)
-        
+        ax1.plot(
+            stock_board_concept_hist_em_df['日期'],
+            stock_board_concept_hist_em_df['成交额'],
+            label=board_name
+        )
+
         # 绘制涨幅折线图
         initial_close = stock_board_concept_hist_em_df['收盘'].iloc[0]
         scaled_close = stock_board_concept_hist_em_df['收盘'] / initial_close  # 按比例缩放
-        ax2.plot(stock_board_concept_hist_em_df['日期'], scaled_close, label=board_name)
+        ax2.plot(
+            stock_board_concept_hist_em_df['日期'],
+            scaled_close,
+            label=board_name
+        )
 
     # 设置图表标题和图例
-    ax1.set_title(f"前十概念板块成交额 - 最近{selected_days}天")
-    ax1.set_xlabel("日期")
-    ax1.set_ylabel("成交额")
-    ax1.legend(loc="upper left")
+    ax1.set_title(f"前十概念板块成交额 - 最近{selected_days}天", fontproperties=font_prop)
+    ax1.set_xlabel("日期", fontproperties=font_prop)
+    ax1.set_ylabel("成交额", fontproperties=font_prop)
+    ax1.legend(loc="upper left", prop=font_prop)
 
-    ax2.set_title(f"前十概念板块涨幅 - 最近{selected_days}天")
-    ax2.set_xlabel("日期")
-    ax2.set_ylabel("相对涨幅")
-    ax2.legend(loc="upper left")
+    ax2.set_title(f"前十概念板块涨幅 - 最近{selected_days}天", fontproperties=font_prop)
+    ax2.set_xlabel("日期", fontproperties=font_prop)
+    ax2.set_ylabel("相对涨幅", fontproperties=font_prop)
+    ax2.legend(loc="upper left", prop=font_prop)
 
-    # 在Streamlit中显示图表
+    # 在 Streamlit 中显示图表
     st.pyplot(fig)
 
     # 生成按钮查看成分股信息
@@ -81,9 +90,20 @@ def show_board_ranking():
         if st.button(board_name):
             # 获取成分股数据
             stock_board_concept_cons_em_df = ak.stock_board_concept_cons_em(symbol=board_name)
-            top_10_by_change = stock_board_concept_cons_em_df.sort_values(by='涨跌幅', ascending=False).head(10)
+
+            # 按涨幅排名前十的成分股
+            top_10_by_change = stock_board_concept_cons_em_df.sort_values(
+                by='涨跌幅', ascending=False
+            ).head(10)
             st.write(f"{board_name} 涨幅前十成分股")
             st.dataframe(top_10_by_change[['名称', '代码', '涨跌幅', '成交额']])
+
+            # 按成交额排名前十的成分股
+            top_10_by_volume = stock_board_concept_cons_em_df.sort_values(
+                by='成交额', ascending=False
+            ).head(10)
+            st.write(f"{board_name} 成交额前十成分股")
+            st.dataframe(top_10_by_volume[['名称', '代码', '成交额', '涨跌幅']])
 
 # 定义绘制行业排名的函数
 def show_industry_ranking():
@@ -122,29 +142,39 @@ def show_industry_ranking():
     for index, row in filtered_boards.iterrows():
         board_name = row['板块名称']
         # 获取行业板块的历史数据
-        stock_board_industry_hist_em_df = ak.stock_board_industry_hist_em(symbol=board_name, period="日k", 
-                                                                         start_date=start_date, end_date=end_date, adjust="")
-        
+        stock_board_industry_hist_em_df = ak.stock_board_industry_hist_em(
+            symbol=board_name, period="日k",
+            start_date=start_date, end_date=end_date, adjust=""
+        )
+
         # 绘制成交额折线图
-        ax1.plot(stock_board_industry_hist_em_df['日期'], stock_board_industry_hist_em_df['成交额'], label=board_name)
-        
+        ax1.plot(
+            stock_board_industry_hist_em_df['日期'],
+            stock_board_industry_hist_em_df['成交额'],
+            label=board_name
+        )
+
         # 绘制涨幅折线图
         initial_close = stock_board_industry_hist_em_df['收盘'].iloc[0]
         scaled_close = stock_board_industry_hist_em_df['收盘'] / initial_close  # 按比例缩放
-        ax2.plot(stock_board_industry_hist_em_df['日期'], scaled_close, label=board_name)
+        ax2.plot(
+            stock_board_industry_hist_em_df['日期'],
+            scaled_close,
+            label=board_name
+        )
 
     # 设置图表标题和图例
-    ax1.set_title(f"前十行业板块成交额 - 最近{selected_days}天")
-    ax1.set_xlabel("日期")
-    ax1.set_ylabel("成交额")
-    ax1.legend(loc="upper left")
+    ax1.set_title(f"前十行业板块成交额 - 最近{selected_days}天", fontproperties=font_prop)
+    ax1.set_xlabel("日期", fontproperties=font_prop)
+    ax1.set_ylabel("成交额", fontproperties=font_prop)
+    ax1.legend(loc="upper left", prop=font_prop)
 
-    ax2.set_title(f"前十行业板块涨幅 - 最近{selected_days}天")
-    ax2.set_xlabel("日期")
-    ax2.set_ylabel("相对涨幅")
-    ax2.legend(loc="upper left")
+    ax2.set_title(f"前十行业板块涨幅 - 最近{selected_days}天", fontproperties=font_prop)
+    ax2.set_xlabel("日期", fontproperties=font_prop)
+    ax2.set_ylabel("相对涨幅", fontproperties=font_prop)
+    ax2.legend(loc="upper left", prop=font_prop)
 
-    # 在Streamlit中显示图表
+    # 在 Streamlit 中显示图表
     st.pyplot(fig)
 
     # 生成按钮查看成分股信息
@@ -154,9 +184,20 @@ def show_industry_ranking():
         if st.button(board_name):
             # 获取成分股数据
             stock_board_industry_cons_em_df = ak.stock_board_industry_cons_em(symbol=board_name)
-            top_10_by_change = stock_board_industry_cons_em_df.sort_values(by='涨跌幅', ascending=False).head(10)
+
+            # 按涨幅排名前十的成分股
+            top_10_by_change = stock_board_industry_cons_em_df.sort_values(
+                by='涨跌幅', ascending=False
+            ).head(10)
             st.write(f"{board_name} 涨幅前十成分股")
             st.dataframe(top_10_by_change[['名称', '代码', '涨跌幅', '成交额']])
+
+            # 按成交额排名前十的成分股
+            top_10_by_volume = stock_board_industry_cons_em_df.sort_values(
+                by='成交额', ascending=False
+            ).head(10)
+            st.write(f"{board_name} 成交额前十成分股")
+            st.dataframe(top_10_by_volume[['名称', '代码', '成交额', '涨跌幅']])
 
 # Streamlit 应用主界面
 st.title("板块和行业排名图表展示")
@@ -169,4 +210,6 @@ if option == '概念板块排名':
     show_board_ranking()
 elif option == '行业排名':
     show_industry_ranking()
+
+       
 
