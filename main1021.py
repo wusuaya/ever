@@ -6,10 +6,16 @@ import matplotlib.font_manager as fm
 import os
 
 # 加载项目目录中的字体文件
-font_path = os.path.join(os.path.dirname(__file__), "NotoSansCJKsc-Regular.otf")
-font_prop = fm.FontProperties(fname=font_path)
-plt.rcParams['font.family'] = font_prop.get_name()
-plt.rcParams['axes.unicode_minus'] = False  # 解决坐标轴负号显示问题
+font_path = os.path.join(os.getcwd(), "SimHei.ttf")  # 确保字体文件在当前工作目录
+if not os.path.exists(font_path):
+    st.error(f"字体文件未找到：{font_path}")
+else:
+    try:
+        font_prop = fm.FontProperties(fname=font_path)
+        plt.rcParams['font.family'] = font_prop.get_name()
+        plt.rcParams['axes.unicode_minus'] = False  # 解决坐标轴负号显示问题
+    except Exception as e:
+        st.error(f"加载字体时出错：{e}")
 
 # 定义绘制概念板块排名的函数
 def show_board_ranking():
@@ -70,15 +76,20 @@ def show_board_ranking():
         )
 
     # 设置图表标题和图例
-    ax1.set_title(f"前十概念板块成交额 - 最近{selected_days}天", fontproperties=font_prop)
-    ax1.set_xlabel("日期", fontproperties=font_prop)
-    ax1.set_ylabel("成交额", fontproperties=font_prop)
-    ax1.legend(loc="upper left", prop=font_prop)
+    if 'font_prop' in locals():
+        font_kwargs = {'fontproperties': font_prop}
+    else:
+        font_kwargs = {}
 
-    ax2.set_title(f"前十概念板块涨幅 - 最近{selected_days}天", fontproperties=font_prop)
-    ax2.set_xlabel("日期", fontproperties=font_prop)
-    ax2.set_ylabel("相对涨幅", fontproperties=font_prop)
-    ax2.legend(loc="upper left", prop=font_prop)
+    ax1.set_title(f"前十概念板块成交额 - 最近{selected_days}天", **font_kwargs)
+    ax1.set_xlabel("日期", **font_kwargs)
+    ax1.set_ylabel("成交额", **font_kwargs)
+    ax1.legend(loc="upper left", prop=font_prop if 'font_prop' in locals() else None)
+
+    ax2.set_title(f"前十概念板块涨幅 - 最近{selected_days}天", **font_kwargs)
+    ax2.set_xlabel("日期", **font_kwargs)
+    ax2.set_ylabel("相对涨幅", **font_kwargs)
+    ax2.legend(loc="upper left", prop=font_prop if 'font_prop' in locals() else None)
 
     # 在 Streamlit 中显示图表
     st.pyplot(fig)
@@ -164,15 +175,20 @@ def show_industry_ranking():
         )
 
     # 设置图表标题和图例
-    ax1.set_title(f"前十行业板块成交额 - 最近{selected_days}天", fontproperties=font_prop)
-    ax1.set_xlabel("日期", fontproperties=font_prop)
-    ax1.set_ylabel("成交额", fontproperties=font_prop)
-    ax1.legend(loc="upper left", prop=font_prop)
+    if 'font_prop' in locals():
+        font_kwargs = {'fontproperties': font_prop}
+    else:
+        font_kwargs = {}
 
-    ax2.set_title(f"前十行业板块涨幅 - 最近{selected_days}天", fontproperties=font_prop)
-    ax2.set_xlabel("日期", fontproperties=font_prop)
-    ax2.set_ylabel("相对涨幅", fontproperties=font_prop)
-    ax2.legend(loc="upper left", prop=font_prop)
+    ax1.set_title(f"前十行业板块成交额 - 最近{selected_days}天", **font_kwargs)
+    ax1.set_xlabel("日期", **font_kwargs)
+    ax1.set_ylabel("成交额", **font_kwargs)
+    ax1.legend(loc="upper left", prop=font_prop if 'font_prop' in locals() else None)
+
+    ax2.set_title(f"前十行业板块涨幅 - 最近{selected_days}天", **font_kwargs)
+    ax2.set_xlabel("日期", **font_kwargs)
+    ax2.set_ylabel("相对涨幅", **font_kwargs)
+    ax2.legend(loc="upper left", prop=font_prop if 'font_prop' in locals() else None)
 
     # 在 Streamlit 中显示图表
     st.pyplot(fig)
@@ -211,5 +227,4 @@ if option == '概念板块排名':
 elif option == '行业排名':
     show_industry_ranking()
 
-       
 
