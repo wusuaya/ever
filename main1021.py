@@ -8,7 +8,7 @@ import os
 # 设置字体文件名
 FONT_FILENAME = "NotoSansMonoCJKsc-Regular.otf"
 
-# 构建字体文件路径，确保字体文件在项目根目录中
+# 构建字体文件路径
 font_path = os.path.join(os.getcwd(), FONT_FILENAME)
 
 # 检查字体文件是否存在
@@ -16,13 +16,15 @@ if not os.path.exists(font_path):
     st.error(f"字体文件未找到：{font_path}")
 else:
     try:
-        # 加载字体属性
-        font_prop = fm.FontProperties(fname=font_path, size=12)  # 设置字体大小
-        # 设置全局字体
+        # 加载字体属性并设置字体大小
+        font_prop = fm.FontProperties(fname=font_path, size=12)
+        # 输出调试信息，查看字体是否加载成功
+        st.success(f"字体文件加载成功：{font_path}")
+
+        # 设置 Matplotlib 全局字体
         plt.rcParams['font.family'] = font_prop.get_name()
-        plt.rcParams['font.size'] = 12  # 显式设置全局字体大小
-        # 解决坐标轴负号显示问题
-        plt.rcParams['axes.unicode_minus'] = False
+        plt.rcParams['font.size'] = 12  # 设置字体大小
+        plt.rcParams['axes.unicode_minus'] = False  # 解决坐标轴负号显示问题
     except Exception as e:
         st.error(f"加载字体时出错：{e}")
 
@@ -84,21 +86,16 @@ def show_board_ranking():
             label=board_name
         )
 
-    # 设置图表标题和图例
-    if 'font_prop' in locals():
-        font_kwargs = {'fontproperties': font_prop}
-    else:
-        font_kwargs = {}
+    # 显式设置标题、X轴和Y轴的字体属性
+    ax1.set_title(f"前十概念板块成交额 - 最近{selected_days}天", fontproperties=font_prop)
+    ax1.set_xlabel("日期", fontproperties=font_prop)
+    ax1.set_ylabel("成交额", fontproperties=font_prop)
+    ax1.legend(loc="upper left", prop=font_prop)
 
-    ax1.set_title(f"前十概念板块成交额 - 最近{selected_days}天", **font_kwargs)
-    ax1.set_xlabel("日期", **font_kwargs)
-    ax1.set_ylabel("成交额", **font_kwargs)
-    ax1.legend(loc="upper left", prop=font_prop if 'font_prop' in locals() else None)
-
-    ax2.set_title(f"前十概念板块涨幅 - 最近{selected_days}天", **font_kwargs)
-    ax2.set_xlabel("日期", **font_kwargs)
-    ax2.set_ylabel("相对涨幅", **font_kwargs)
-    ax2.legend(loc="upper left", prop=font_prop if 'font_prop' in locals() else None)
+    ax2.set_title(f"前十概念板块涨幅 - 最近{selected_days}天", fontproperties=font_prop)
+    ax2.set_xlabel("日期", fontproperties=font_prop)
+    ax2.set_ylabel("相对涨幅", fontproperties=font_prop)
+    ax2.legend(loc="upper left", prop=font_prop)
 
     # 在 Streamlit 中显示图表
     st.pyplot(fig)
