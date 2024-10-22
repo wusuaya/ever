@@ -5,15 +5,23 @@ from datetime import datetime, timedelta
 import matplotlib.font_manager as fm
 import os
 
-# 加载项目目录中的字体文件
-font_path = os.path.join(os.getcwd(), "NotoSansSC-VariableFont_wght.ttf")  # 确保字体文件在当前工作目录
+# 设置字体文件名
+FONT_FILENAME = "NotoSansSC-VariableFont_wght.ttf"
+
+# 构建字体文件路径，确保字体文件在项目根目录中
+font_path = os.path.join(os.getcwd(), FONT_FILENAME)
+
+# 检查字体文件是否存在
 if not os.path.exists(font_path):
     st.error(f"字体文件未找到：{font_path}")
 else:
     try:
+        # 加载字体属性
         font_prop = fm.FontProperties(fname=font_path)
+        # 设置全局字体
         plt.rcParams['font.family'] = font_prop.get_name()
-        plt.rcParams['axes.unicode_minus'] = False  # 解决坐标轴负号显示问题
+        # 解决坐标轴负号显示问题
+        plt.rcParams['axes.unicode_minus'] = False
     except Exception as e:
         st.error(f"加载字体时出错：{e}")
 
@@ -226,5 +234,3 @@ if option == '概念板块排名':
     show_board_ranking()
 elif option == '行业排名':
     show_industry_ranking()
-
-
