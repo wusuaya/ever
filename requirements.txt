@@ -2,3 +2,5 @@ streamlit
 akshare
 pandas
 matplotlib
+plotly.graph_objects
+plotly
