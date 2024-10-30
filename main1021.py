@@ -41,8 +41,14 @@ top_20_boards = pd.concat([industry_board_df, concept_board_df], axis=0)
 # 获取每个板块中成交量前十和涨幅前十的股票
 top_stocks = []
 for board_name in top_20_boards['板块名称']:
-    # 获取板块成份股
-    stocks_df = ak.stock_board_cons_ths(symbol=board_name)
+    try:
+        stocks_df = ak.stock_board_industry_hist_em(symbol=board_name) if board_name in industry_board_df['板块名称'].tolist() else ak.stock_board_concept_hist_em(symbol=board_name)
+        if stocks_df is None or stocks_df.empty:
+            st.warning(f"未能获取板块 {board_name} 的数据，可能该板块数据为空或接口错误。")
+            continue
+    except AttributeError as e:
+        st.error(f"获取板块 {board_name} 成份股时出错：{e}")
+        continue
     top_volume_stocks = stocks_df.sort_values(by=['成交量'], ascending=False).head(10)
     top_stocks.extend(top_volume_stocks['股票代码'].tolist())
     top_gain_stocks = stocks_df.sort_values(by=['涨幅'], ascending=False).head(10)
@@ -63,7 +69,14 @@ for stock in repeated_stocks_df['股票代码']:
     for index, row in top_20_boards.iterrows():
         board_name = row['板块名称']
         board_type = '行业' if index < 10 else '概念'
-        stocks_df = ak.stock_board_cons_ths(symbol=board_name)
+        try:
+            stocks_df = ak.stock_board_industry_hist_em(symbol=board_name) if board_type == '行业' else ak.stock_board_concept_hist_em(symbol=board_name)
+            if stocks_df is None or stocks_df.empty:
+                st.warning(f"未能获取板块 {board_name} 的数据，可能该板块数据为空或接口错误。")
+                continue
+        except AttributeError as e:
+            st.error(f"获取板块 {board_name} 成份股时出错：{e}")
+            continue
         if stock in stocks_df['股票代码'].tolist():
             stock_info['板块名称'].append(board_name)
             stock_info['板块类型'].append(board_type)
