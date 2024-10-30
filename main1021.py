@@ -42,7 +42,7 @@ top_20_boards = pd.concat([industry_board_top10, concept_board_top10], axis=0)
 top_20_stocks = []
 for board_name in top_20_boards['板块名称']:
     # 获取板块成份股
-    stocks_df = ak.stock_board_cons_ths(symbol=board_name)
+    stocks_df = ak.stock_board_cons_em(symbol=board_name)
     stocks_df = stocks_df.sort_values(by=['成交量'], ascending=False).head(10)
     top_20_stocks.extend(stocks_df['股票代码'].tolist())
     stocks_df = stocks_df.sort_values(by=['涨幅'], ascending=False).head(10)
@@ -61,7 +61,7 @@ stock_details = []
 for stock in repeated_stocks_df['股票代码']:
     stock_info = {'股票代码': stock, '板块类型': [], '板块名称': [], '排名类别': []}
     for board_name in top_20_boards['板块名称']:
-        stocks_df = ak.stock_board_cons_ths(symbol=board_name)
+        stocks_df = ak.stock_board_cons_em(symbol=board_name)
         if stock in stocks_df['股票代码'].tolist():
             stock_info['板块名称'].append(board_name)
             if board_name in industry_board_top10['板块名称'].tolist():
