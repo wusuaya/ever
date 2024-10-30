@@ -29,27 +29,31 @@ else:
 
 # 获取行业排名和概念板块排名前十的板块
 st.header("行业和概念板块排名")
-industry_board = ak.stock_board_industry_name_em()
-concept_board = ak.stock_board_concept_name_em()
 
-industry_board_top10 = industry_board.head(10)
-concept_board_top10 = concept_board.head(10)
+# 使用下拉菜单选择行业排名或概念板块排名
+date_range = st.selectbox(
+    '请选择绘制图表的时间段（行业或概念板块）',
+    ('行业排名', '概念板块排名')
+)
 
-# 合并行业和概念板块前十，共计 20 个板块
-top_20_boards = pd.concat([industry_board_top10, concept_board_top10], axis=0)
+# 根据选择获取相应的排名数据
+if date_range == '行业排名':
+    top_boards = ak.stock_board_industry_name_em().head(10)
+else:
+    top_boards = ak.stock_board_concept_name_em().head(10)
 
 # 获取每个板块中成交量前十和涨幅前十的股票
-top_20_stocks = []
-for board_name in top_20_boards['板块名称']:
+top_stocks = []
+for board_name in top_boards['板块名称']:
     # 获取板块成份股
-    stocks_df = ak.stock_board_cons_em(symbol=board_name)
-    stocks_df = stocks_df.sort_values(by=['成交量'], ascending=False).head(10)
-    top_20_stocks.extend(stocks_df['股票代码'].tolist())
-    stocks_df = stocks_df.sort_values(by=['涨幅'], ascending=False).head(10)
-    top_20_stocks.extend(stocks_df['股票代码'].tolist())
+    stocks_df = ak.stock_board_cons_ths(symbol=board_name)
+    top_volume_stocks = stocks_df.sort_values(by=['成交量'], ascending=False).head(10)
+    top_stocks.extend(top_volume_stocks['股票代码'].tolist())
+    top_gain_stocks = stocks_df.sort_values(by=['涨幅'], ascending=False).head(10)
+    top_stocks.extend(top_gain_stocks['股票代码'].tolist())
 
 # 统计重复次数并筛选出重复次数大于等于 2 的股票
-stock_counter = Counter(top_20_stocks)
+stock_counter = Counter(top_stocks)
 repeated_stocks = {stock: count for stock, count in stock_counter.items() if count >= 2}
 
 # 将结果转换为 DataFrame 并按照重复次数排序
@@ -59,15 +63,11 @@ repeated_stocks_df = repeated_stocks_df.sort_values(by=['重复次数'], ascendi
 # 列出每只股票属于的板块及其类型（行业/概念），是成交量前十还是涨幅前十
 stock_details = []
 for stock in repeated_stocks_df['股票代码']:
-    stock_info = {'股票代码': stock, '板块类型': [], '板块名称': [], '排名类别': []}
-    for board_name in top_20_boards['板块名称']:
-        stocks_df = ak.stock_board_cons_em(symbol=board_name)
+    stock_info = {'股票代码': stock, '板块类型': date_range, '板块名称': [], '排名类别': []}
+    for board_name in top_boards['板块名称']:
+        stocks_df = ak.stock_board_cons_ths(symbol=board_name)
         if stock in stocks_df['股票代码'].tolist():
             stock_info['板块名称'].append(board_name)
-            if board_name in industry_board_top10['板块名称'].tolist():
-                stock_info['板块类型'].append('行业')
-            else:
-                stock_info['板块类型'].append('概念')
             if stock in stocks_df.sort_values(by=['成交量'], ascending=False).head(10)['股票代码'].tolist():
                 stock_info['排名类别'].append('成交量前十')
             if stock in stocks_df.sort_values(by=['涨幅'], ascending=False).head(10)['股票代码'].tolist():
@@ -94,3 +94,4 @@ plt.xticks(rotation=90)
 st.pyplot(fig)
 
 # 其余代码保持不变...
+
