@@ -27,9 +27,17 @@ else:
     except Exception as e:
         st.error(f"加载字体时出错：{e}")
 
-# 获取概念板块和行业板块数据，在全局范围内定义
+# 获取概念板块和行业板块数据，在全局范围内定义并过滤掉不需要的板块
+excluded_boards = ['昨日连板', '昨日涨停', '昨日连板_含一字', '昨日涨停_含一字', '百元股']
 stock_board_concept_name_em_df = ak.stock_board_concept_name_em()
+stock_board_concept_name_em_df = stock_board_concept_name_em_df[
+    ~stock_board_concept_name_em_df['板块名称'].str.contains('|'.join(excluded_boards))
+]
+
 stock_board_industry_name_em_df = ak.stock_board_industry_name_em()
+stock_board_industry_name_em_df = stock_board_industry_name_em_df[
+    ~stock_board_industry_name_em_df['板块名称'].str.contains('|'.join(excluded_boards))
+]
 
 # 定义绘制概念板块排名的函数
 def show_board_ranking():
@@ -53,11 +61,8 @@ def show_board_ranking():
     end_date = datetime.now().strftime("%Y%m%d")
     start_date = (datetime.now() - timedelta(days=selected_days)).strftime("%Y%m%d")
 
-    # 去掉特定的板块名称
-    excluded_boards = ['昨日连板', '昨日涨停', '昨日连板_含一字', '昨日涨停_含一字', '百元股']
-    filtered_boards = stock_board_concept_name_em_df[
-        (~stock_board_concept_name_em_df['板块名称'].str.contains('|'.join(excluded_boards)))
-    ].head(10)
+    # 获取前十概念板块
+    filtered_boards = stock_board_concept_name_em_df.head(10)
 
     # 1. 绘制成交额和涨幅折线图
     fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(10, 8))
@@ -144,11 +149,8 @@ def show_industry_ranking():
     end_date = datetime.now().strftime("%Y%m%d")
     start_date = (datetime.now() - timedelta(days=selected_days)).strftime("%Y%m%d")
 
-    # 去掉特定的板块名称
-    excluded_boards = ['昨日连板', '昨日涨停', '昨日连板_含一字', '昨日涨停_含一字', '百元股']
-    filtered_boards = stock_board_industry_name_em_df[
-        (~stock_board_industry_name_em_df['板块名称'].str.contains('|'.join(excluded_boards)))
-    ].head(10)
+    # 获取前十行业板块
+    filtered_boards = stock_board_industry_name_em_df.head(10)
 
     # 1. 绘制成交额和涨幅折线图
     fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(10, 8))
@@ -280,4 +282,3 @@ elif option == '行业排名':
 
 # 显示重复个股的统计信息
 show_repeated_stocks()
-
