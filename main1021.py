@@ -4,6 +4,8 @@ import matplotlib.pyplot as plt
 from datetime import datetime, timedelta
 import matplotlib.font_manager as fm
 import os
+import pandas as pd
+from collections import defaultdict
 
 # 设置字体文件名
 FONT_FILENAME = "NotoSansMonoCJKsc-Regular.otf"
@@ -194,33 +196,5 @@ def show_industry_ranking():
     # 生成按钮查看成分股信息
     st.subheader("点击行业板块名称查看成份股信息")
     for index, row in filtered_boards.iterrows():
-        board_name = row['板块名称']
-        if st.button(board_name):
-            # 获取成分股数据
-            stock_board_industry_cons_em_df = ak.stock_board_industry_cons_em(symbol=board_name)
+       
 
-            # 按涨幅排名前十的成分股
-            top_10_by_change = stock_board_industry_cons_em_df.sort_values(
-                by='涨跌幅', ascending=False
-            ).head(10)
-            st.write(f"{board_name} 涨幅前十成分股")
-            st.dataframe(top_10_by_change[['名称', '代码', '涨跌幅', '成交额']])
-
-            # 按成交额排名前十的成分股
-            top_10_by_volume = stock_board_industry_cons_em_df.sort_values(
-                by='成交额', ascending=False
-            ).head(10)
-            st.write(f"{board_name} 成交额前十成分股")
-            st.dataframe(top_10_by_volume[['名称', '代码', '成交额', '涨跌幅']])
-
-# Streamlit 应用主界面
-st.title("板块和行业排名图表展示")
-
-# 创建选择框来选择显示的内容
-option = st.selectbox('请选择要展示的图表', ('概念板块排名', '行业排名'))
-
-# 根据选择显示相应的图表
-if option == '概念板块排名':
-    show_board_ranking()
-elif option == '行业排名':
-    show_industry_ranking()
