@@ -27,6 +27,10 @@ else:
     except Exception as e:
         st.error(f"加载字体时出错：{e}")
 
+# 获取概念板块和行业板块数据，在全局范围内定义
+stock_board_concept_name_em_df = ak.stock_board_concept_name_em()
+stock_board_industry_name_em_df = ak.stock_board_industry_name_em()
+
 # 定义绘制概念板块排名的函数
 def show_board_ranking():
     # 获取日期范围的选择
@@ -48,9 +52,6 @@ def show_board_ranking():
     # 获取今天的日期和对应时间段的开始日期
     end_date = datetime.now().strftime("%Y%m%d")
     start_date = (datetime.now() - timedelta(days=selected_days)).strftime("%Y%m%d")
-
-    # 获取概念板块数据
-    stock_board_concept_name_em_df = ak.stock_board_concept_name_em()
 
     # 去掉特定的板块名称
     excluded_boards = ['昨日连板', '昨日涨停', '昨日连板_含一字', '昨日涨停_含一字', '百元股']
@@ -142,9 +143,6 @@ def show_industry_ranking():
     # 获取今天的日期和对应时间段的开始日期
     end_date = datetime.now().strftime("%Y%m%d")
     start_date = (datetime.now() - timedelta(days=selected_days)).strftime("%Y%m%d")
-
-    # 获取行业板块数据
-    stock_board_industry_name_em_df = ak.stock_board_industry_name_em()
 
     # 去掉特定的板块名称
     excluded_boards = ['昨日连板', '昨日涨停', '昨日连板_含一字', '昨日涨停_含一字', '百元股']
