@@ -4,28 +4,20 @@ import akshare as ak
 import plotly.graph_objects as go
 from datetime import datetime, timedelta
 import os
-from git import Repo
-
-# GitHub 配置
-github_repo_url = "https://github.com/your-username/your-repo-name"
-github_local_path = "./your-repo-name"
-
-# 克隆 GitHub 仓库
-def clone_repo():
-    if not os.path.exists(github_local_path):
-        Repo.clone_from(github_repo_url, github_local_path)
-
-# 推送更改到 GitHub
-def push_to_github(commit_message):
-    repo = Repo(github_local_path)
-    repo.git.add(all=True)
-    repo.index.commit(commit_message)
-    origin = repo.remote(name='origin')
-    origin.push()
 
 # 读取数据文件
-data_file_path = os.path.join(github_local_path, 'modified_chat_records.xlsx')
-clone_repo()
+data_file_path = 'modified_chat_records.xlsx'
+
+# 检查文件是否存在，如果不存在则要求用户上传
+if not os.path.exists(data_file_path):
+    uploaded_file = st.file_uploader("上传聊天记录文件", type="xlsx")
+    if uploaded_file is not None:
+        with open(data_file_path, "wb") as f:
+            f.write(uploaded_file.getbuffer())
+        st.success("文件上传成功！")
+    else:
+        st.stop()
+
 data = pd.read_excel(data_file_path)
 
 # 清理和过滤有效股票代码
@@ -200,10 +192,8 @@ if not selected_row.empty:
             # 显示图表
             st.plotly_chart(fig)
 
-        # 推送本地文件到 GitHub
-        push_to_github("更新聊天记录文件和分析代码")
-
     except Exception as e:
         st.write(f"获取股票数据失败：{e}")
 else:
     st.write("无数据可展示")
+
