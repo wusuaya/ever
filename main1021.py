@@ -30,21 +30,17 @@ else:
 # 获取行业排名和概念板块排名前十的板块
 st.header("行业和概念板块排名")
 
-# 使用下拉菜单选择行业排名或概念板块排名
-date_range = st.selectbox(
-    '请选择绘制图表的时间段（行业或概念板块）',
-    ('行业排名', '概念板块排名')
-)
+# 获取行业板块前十
+industry_board_df = ak.stock_board_industry_name_em().head(10)
+# 获取概念板块前十
+concept_board_df = ak.stock_board_concept_name_em().head(10)
 
-# 根据选择获取相应的排名数据
-if date_range == '行业排名':
-    top_boards = ak.stock_board_industry_name_em().head(10)
-else:
-    top_boards = ak.stock_board_concept_name_em().head(10)
+# 合并行业和概念板块前十，共计 20 个板块
+top_20_boards = pd.concat([industry_board_df, concept_board_df], axis=0)
 
 # 获取每个板块中成交量前十和涨幅前十的股票
 top_stocks = []
-for board_name in top_boards['板块名称']:
+for board_name in top_20_boards['板块名称']:
     # 获取板块成份股
     stocks_df = ak.stock_board_cons_ths(symbol=board_name)
     top_volume_stocks = stocks_df.sort_values(by=['成交量'], ascending=False).head(10)
@@ -63,11 +59,14 @@ repeated_stocks_df = repeated_stocks_df.sort_values(by=['重复次数'], ascendi
 # 列出每只股票属于的板块及其类型（行业/概念），是成交量前十还是涨幅前十
 stock_details = []
 for stock in repeated_stocks_df['股票代码']:
-    stock_info = {'股票代码': stock, '板块类型': date_range, '板块名称': [], '排名类别': []}
-    for board_name in top_boards['板块名称']:
+    stock_info = {'股票代码': stock, '板块类型': [], '板块名称': [], '排名类别': []}
+    for index, row in top_20_boards.iterrows():
+        board_name = row['板块名称']
+        board_type = '行业' if index < 10 else '概念'
         stocks_df = ak.stock_board_cons_ths(symbol=board_name)
         if stock in stocks_df['股票代码'].tolist():
             stock_info['板块名称'].append(board_name)
+            stock_info['板块类型'].append(board_type)
             if stock in stocks_df.sort_values(by=['成交量'], ascending=False).head(10)['股票代码'].tolist():
                 stock_info['排名类别'].append('成交量前十')
             if stock in stocks_df.sort_values(by=['涨幅'], ascending=False).head(10)['股票代码'].tolist():
