@@ -83,51 +83,76 @@ if custom_code:
                 }
                 st.table(pd.DataFrame(pivot_data))
 
-                # 计算七分位信息，包括零轴和负数部分七档
-                prev_close = C
-                high_limit = prev_close * 1.1 if symbol.startswith("6") or symbol.startswith("0") else prev_close * 1.2
-                high_limit = round(high_limit, 2)  # 考虑到可能的9.95%涨停情况
-                range_size = (high_limit - prev_close) / 7
-                positive_segments = [prev_close + i * range_size for i in range(1, 8)]
-                negative_segments = [prev_close - i * range_size for i in range(1, 8)]
-                seven_segments = negative_segments[::-1] + [prev_close] + positive_segments
+                # 计算均线和布林线参数
+                ma_period_1, ma_period_2, ma_period_3 = 5, 10, 20
+                boll_period, boll_std = 20, 2.5
 
-                # 七分位信息表格展示
-                st.write("基于当前日期收盘价的下一日七分位信息")
-                seven_segment_data = {
-                    "位置": ["负七分位", "负六分位", "负五分位", "负四分位", "负三分位", "负二分位", "负一分位", "零轴（前收）", "正一分位", "正二分位", "正三分位", "正四分位", "正五分位", "正六分位", "正七分位"],
-                    "价格": seven_segments
+                # 当日均线和布林线值
+                today_ma1 = stock_data['收盘'].rolling(window=ma_period_1).mean().loc[date_obj]
+                today_ma2 = stock_data['收盘'].rolling(window=ma_period_2).mean().loc[date_obj]
+                today_ma3 = stock_data['收盘'].rolling(window=ma_period_3).mean().loc[date_obj]
+                today_boll_up = stock_data['收盘'].rolling(window=boll_period).mean().loc[date_obj] + boll_std * stock_data['收盘'].rolling(window=boll_period).std().loc[date_obj]
+                today_boll_down = stock_data['收盘'].rolling(window=boll_period).mean().loc[date_obj] - boll_std * stock_data['收盘'].rolling(window=boll_period).std().loc[date_obj]
+
+                # 下一日均线和布林线值（如果有数据）
+                if next_day is not None:
+                    next_day_ma1 = stock_data['收盘'].rolling(window=ma_period_1).mean().loc[date_obj + timedelta(days=1)]
+                    next_day_ma2 = stock_data['收盘'].rolling(window=ma_period_2).mean().loc[date_obj + timedelta(days=1)]
+                    next_day_ma3 = stock_data['收盘'].rolling(window=ma_period_3).mean().loc[date_obj + timedelta(days=1)]
+                    next_day_boll_up = stock_data['收盘'].rolling(window=boll_period).mean().loc[date_obj + timedelta(days=1)] + boll_std * stock_data['收盘'].rolling(window=boll_period).std().loc[date_obj + timedelta(days=1)]
+                    next_day_boll_down = stock_data['收盘'].rolling(window=boll_period).mean().loc[date_obj + timedelta(days=1)] - boll_std * stock_data['收盘'].rolling(window=boll_period).std().loc[date_obj + timedelta(days=1)]
+                else:
+                    next_day_ma1 = next_day_ma2 = next_day_ma3 = next_day_boll_up = next_day_boll_down = None
+
+                # 均线和布林线参数信息表格展示
+                st.write("均线和布林线参数计算信息")
+                ma_boll_data = {
+                    "参数名称": ["MA5", "MA10", "MA20", "布林线上轨", "布林线下轨"],
+                    "当日值": [today_ma1, today_ma2, today_ma3, today_boll_up, today_boll_down],
+                    "下一日值": [next_day_ma1, next_day_ma2, next_day_ma3, next_day_boll_up, next_day_boll_down]
                 }
-                st.table(pd.DataFrame(seven_segment_data))
-
-            # 均线和布林线参数调节 - 增加输入框和滑块
-            ma_period_1 = st.number_input("输入第一个均线周期参数", min_value=1, max_value=250, value=5)
-            ma_period_1_slider = st.slider("选择第一个均线周期参数 (滑块)", 1, 250, 5)
-            ma_period_2 = st.number_input("输入第二个均线周期参数", min_value=1, max_value=250, value=10)
-            ma_period_2_slider = st.slider("选择第二个均线周期参数 (滑块)", 1, 250, 10)
-            ma_period_3 = st.number_input("输入第三个均线周期参数", min_value=1, max_value=250, value=20)
-            ma_period_3_slider = st.slider("选择第三个均线周期参数 (滑块)", 1, 250, 20)
-            boll_period = st.number_input("输入布林线周期参数", min_value=1, max_value=250, value=20)
-            boll_period_slider = st.slider("选择布林线周期参数 (滑块)", 1, 250, 20)
-            boll_std = st.number_input("输入布林线标准差参数", min_value=0.1, max_value=5.0, value=2.5)
-            boll_std_slider = st.slider("选择布林线标准差参数 (滑块)", 0.1, 5.0, 2.5)
-
-            # 将计算的均线和布林线值展示为图表
-            st.write("均线和布林线参数计算信息")
-            ma_boll_data = {
-                "参数名称": ["第一个均线周期", "第二个均线周期", "第三个均线周期", "布林线周期", "布林线标准差"],
-                "输入值": [ma_period_1, ma_period_2, ma_period_3, boll_period, boll_std],
-                "滑块选择值": [ma_period_1_slider, ma_period_2_slider, ma_period_3_slider, boll_period_slider, boll_std_slider]
-            }
-            st.table(pd.DataFrame(ma_boll_data))
+                st.table(pd.DataFrame(ma_boll_data))
 
             # 绘制交互式K线图
-            fig = go.Figure(data=[go.Candlestick(x=stock_data.index,
-                                                  open=stock_data['开盘'],
-                                                  high=stock_data['最高'],
-                                                  low=stock_data['最低'],
-                                                  close=stock_data['收盘'])])
-            fig.update_layout(title=f"{custom_code} K线图", xaxis_title="日期", yaxis_title="价格")
+            fig = go.Figure()
+
+            # 添加K线数据
+            fig.add_trace(go.Candlestick(
+                x=stock_data.index,
+                open=stock_data['开盘'],
+                high=stock_data['最高'],
+                low=stock_data['最低'],
+                close=stock_data['收盘'],
+                increasing_line_color='red',  # 上涨为红色
+                decreasing_line_color='green',  # 下跌为绿色
+                name='K线'
+            ))
+
+            # 添加均线数据
+            stock_data['MA5'] = stock_data['收盘'].rolling(window=ma_period_1).mean()
+            stock_data['MA10'] = stock_data['收盘'].rolling(window=ma_period_2).mean()
+            stock_data['MA20'] = stock_data['收盘'].rolling(window=ma_period_3).mean()
+            fig.add_trace(go.Scatter(x=stock_data.index, y=stock_data['MA5'], mode='lines', name='MA5'))
+            fig.add_trace(go.Scatter(x=stock_data.index, y=stock_data['MA10'], mode='lines', name='MA10'))
+            fig.add_trace(go.Scatter(x=stock_data.index, y=stock_data['MA20'], mode='lines', name='MA20'))
+
+            # 添加布林线数据
+            stock_data['Bollinger_up'] = stock_data['MA20'] + boll_std * stock_data['收盘'].rolling(window=boll_period).std()
+            stock_data['Bollinger_down'] = stock_data['MA20'] - boll_std * stock_data['收盘'].rolling(window=boll_period).std()
+            fig.add_trace(go.Scatter(x=stock_data.index, y=stock_data['Bollinger_up'],
+                                     mode='lines', name='布林线上轨', line=dict(dash='dot', color='purple')))
+            fig.add_trace(go.Scatter(x=stock_data.index, y=stock_data['Bollinger_down'],
+                                     mode='lines', name='布林线下轨', line=dict(dash='dot', color='purple')))
+
+            # 图表布局调整
+            fig.update_layout(
+                title=f"{symbol} K线图",
+                xaxis_title="日期",
+                yaxis_title="价格",
+                xaxis_rangeslider_visible=False
+            )
+
+            # 显示图表
             st.plotly_chart(fig)
 
     except Exception as e:
