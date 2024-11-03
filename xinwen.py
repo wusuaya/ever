@@ -8,6 +8,10 @@ st.title("财经新闻汇总")
 # Get today's date
 today = datetime.date.today()
 
+# Initialize session state for loading more news
+if 'loaded_count' not in st.session_state:
+    st.session_state['loaded_count'] = 10
+
 # Button for 东方财富-财经早餐
 if st.button("财经早餐 - 东方财富"):
     st.write("正在下载数据...")
@@ -69,8 +73,8 @@ if st.button("新闻联播文字稿"):
     if news_cctv_df.empty:
         st.write("暂无数据")
     else:
-        loaded_count = 10
-        st.write(news_cctv_df.head(loaded_count))
+        st.write(news_cctv_df.head(st.session_state['loaded_count']))
         if st.button("加载更多新闻联播文字稿"):
-            loaded_count += 10
-            st.write(news_cctv_df.head(loaded_count))
+            st.session_state['loaded_count'] += 10
+            st.write(news_cctv_df.head(st.session_state['loaded_count']))
+
