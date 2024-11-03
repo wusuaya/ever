@@ -5,27 +5,8 @@ import plotly.graph_objects as go
 from datetime import datetime, timedelta
 import os
 
-# 读取数据文件
-data_file_path = 'modified_chat_records.xlsx'
-
-# 检查文件是否存在，如果不存在则要求用户上传
-if not os.path.exists(data_file_path):
-    uploaded_file = st.file_uploader("上传聊天记录文件", type="xlsx")
-    if uploaded_file is not None:
-        with open(data_file_path, "wb") as f:
-            f.write(uploaded_file.getbuffer())
-        st.success("文件上传成功！")
-    else:
-        st.stop()
-
-data = pd.read_excel(data_file_path)
-
-# 清理和过滤有效股票代码
-data = data[pd.to_numeric(data['First 6 Digits'], errors='coerce').notna()]
-data['First 6 Digits'] = data['First 6 Digits'].astype(int).astype(str).str.zfill(6)
-
 # Streamlit 界面
-st.title("股票聊天记录和K线图分析")
+st.title("股票K线图分析")
 
 # 自由定义日期
 custom_date = st.date_input("输入日期", value=datetime.now())
@@ -34,19 +15,8 @@ selected_date = custom_date.strftime('%Y-%m-%d')
 # 自由定义股票代码
 custom_code = st.text_input("输入股票代码（6位）", "")
 
-# 获取选择的行
+# 检查股票代码是否为空
 if custom_code:
-    filtered_data = data[data['First 6 Digits'] == custom_code]
-else:
-    st.write("请输入有效的股票代码")
-    st.stop()
-
-# 检查是否有对应数据
-if not filtered_data.empty:
-    # 获取聊天信息并显示原文
-    message_content = filtered_data['Message'].values[0]
-    st.write("聊天信息:", message_content)
-
     # 自由定义起始和结束时间
     start_days = st.number_input("起始时间提前天数", value=60, min_value=1)
     end_days = st.number_input("结束时间延后天数", value=10, min_value=1)
@@ -164,5 +134,5 @@ if not filtered_data.empty:
         st.write(f"发生错误: {e}")
 
 else:
-    st.write("未能找到对应的聊天信息。")
+    st.write("请输入有效的股票代码。")
 
