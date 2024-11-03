@@ -63,61 +63,6 @@ if not selected_row.empty:
             stock_data['日期'] = pd.to_datetime(stock_data['日期'])
             stock_data.set_index('日期', inplace=True)
 
-            # 获取当日及下一日数据
-            if date_obj in stock_data.index:
-                today = stock_data.loc[date_obj]
-                next_day = stock_data.loc[date_obj + timedelta(days=1)] if (date_obj + timedelta(days=1)) in stock_data.index else None
-
-                # 展示当日和下一日的开盘、收盘、最高、最低信息
-                st.write("当日和下一日价格信息")
-                today_data = {
-                    "日期": [date_obj.strftime('%Y-%m-%d'), (date_obj + timedelta(days=1)).strftime('%Y-%m-%d')],
-                    "开盘价": [today['开盘'], next_day['开盘'] if next_day is not None else None],
-                    "收盘价": [today['收盘'], next_day['收盘'] if next_day is not None else None],
-                    "最高价": [today['最高'], next_day['最高'] if next_day is not None else None],
-                    "最低价": [today['最低'], next_day['最低'] if next_day is not None else None],
-                }
-                st.table(pd.DataFrame(today_data))
-
-                # 使用当日数据计算下一日的枢轴点、支撑/阻力位和斐波那契水平
-                H = today['最高']
-                L = today['最低']
-                C = today['收盘']
-
-                # 计算枢轴点和支撑/阻力位
-                P = (H + L + C) / 3
-                R1 = 2 * P - L
-                R2 = P + (H - L)
-                S1 = 2 * P - H
-                S2 = P - (H - L)
-
-                # 计算斐波那契回撤或扩展水平
-                fibonacci_38_2 = L + 0.382 * (H - L)
-                fibonacci_61_8 = L + 0.618 * (H - L)
-
-                # 在表格中展示这些计算信息
-                st.write("基于当前日期计算的下一日支撑位和阻力位")
-                pivot_data = {
-                    "枢轴点 (P)": [P],
-                    "阻力位1 (R1)": [R1],
-                    "阻力位2 (R2)": [R2],
-                    "支撑位1 (S1)": [S1],
-                    "支撑位2 (S2)": [S2],
-                    "斐波那契 38.2%": [fibonacci_38_2],
-                    "斐波那契 61.8%": [fibonacci_61_8],
-                }
-                st.table(pd.DataFrame(pivot_data))
-
-            # 展示当日、下一日和下两日的均线和布林线参数值
-            st.write("当日、下一日和下两日的均线和布林线参数信息")
-
-            # 计算当日、下一日和下两日的日期
-            next_day_1 = date_obj + timedelta(days=1)
-            next_day_2 = date_obj + timedelta(days=2)
-
-            # 创建一个包含当日、下一日和下两日的日期列表
-            dates_to_display = [date_obj, next_day_1, next_day_2]
-
             # 均线和布林线参数调节
             ma_period_1_slider = st.slider("选择第一个均线周期参数 (滑块)", 1, 250, 5)
             ma_period_2_slider = st.slider("选择第二个均线周期参数 (滑块)", 1, 250, 10)
@@ -125,14 +70,27 @@ if not selected_row.empty:
             boll_period_slider = st.slider("选择布林线周期参数 (滑块)", 1, 250, 20)
             boll_std_slider = st.slider("选择布林线标准差参数 (滑块)", 0.1, 5.0, 2.5)
 
-            # 获取均线和布林线参数的值
+            # 计算均线
+            stock_data[f"MA{ma_period_1_slider}"] = stock_data['收盘'].rolling(window=ma_period_1_slider).mean()
+            stock_data[f"MA{ma_period_2_slider}"] = stock_data['收盘'].rolling(window=ma_period_2_slider).mean()
+            stock_data[f"MA{ma_period_3_slider}"] = stock_data['收盘'].rolling(window=ma_period_3_slider).mean()
+
+            # 计算布林线
+            stock_data['MA20'] = stock_data['收盘'].rolling(window=boll_period_slider).mean()
+            stock_data['Bollinger_up'] = stock_data['MA20'] + boll_std_slider * stock_data['收盘'].rolling(window=boll_period_slider).std()
+            stock_data['Bollinger_down'] = stock_data['MA20'] - boll_std_slider * stock_data['收盘'].rolling(window=boll_period_slider).std()
+
+            # 选择显示的日期
+            dates_to_display = [date_obj, date_obj + timedelta(days=1), date_obj + timedelta(days=2)]
+
+            # 创建展示数据的表格
             ma_boll_data = {
                 "日期": [],
                 "第一个均线周期": [],
                 "第二个均线周期": [],
                 "第三个均线周期": [],
-                "布林线周期": [],
-                "布林线标准差": []
+                "布林线上轨": [],
+                "布林线下轨": []
             }
 
             for date in dates_to_display:
@@ -142,8 +100,8 @@ if not selected_row.empty:
                     ma_boll_data["第一个均线周期"].append(row[f"MA{ma_period_1_slider}"] if f"MA{ma_period_1_slider}" in row else None)
                     ma_boll_data["第二个均线周期"].append(row[f"MA{ma_period_2_slider}"] if f"MA{ma_period_2_slider}" in row else None)
                     ma_boll_data["第三个均线周期"].append(row[f"MA{ma_period_3_slider}"] if f"MA{ma_period_3_slider}" in row else None)
-                    ma_boll_data["布林线周期"].append(row['MA20'] if 'MA20' in row else None)
-                    ma_boll_data["布林线标准差"].append(boll_std_slider)
+                    ma_boll_data["布林线上轨"].append(row['Bollinger_up'] if 'Bollinger_up' in row else None)
+                    ma_boll_data["布林线下轨"].append(row['Bollinger_down'] if 'Bollinger_down' in row else None)
 
             # 转换为DataFrame并展示
             st.table(pd.DataFrame(ma_boll_data))
@@ -163,15 +121,10 @@ if not selected_row.empty:
 
             # 添加均线数据
             for ma_period in [ma_period_1_slider, ma_period_2_slider, ma_period_3_slider]:
-                stock_data[f"MA{ma_period}"] = stock_data['收盘'].rolling(window=ma_period).mean()
                 fig.add_trace(go.Scatter(x=stock_data.index, y=stock_data[f"MA{ma_period}"],
                                          mode='lines', name=f'MA{ma_period}'))
 
             # 添加布林线数据
-            stock_data['MA20'] = stock_data['收盘'].rolling(window=boll_period_slider).mean()
-            stock_data['Bollinger_up'] = stock_data['MA20'] + boll_std_slider * stock_data['收盘'].rolling(window=boll_period_slider).std()
-            stock_data['Bollinger_down'] = stock_data['MA20'] - boll_std_slider * stock_data['收盘'].rolling(window=boll_period_slider).std()
-
             fig.add_trace(go.Scatter(x=stock_data.index, y=stock_data['Bollinger_up'],
                                      mode='lines', name='布林线上轨', line=dict(dash='dot', color='purple')))
             fig.add_trace(go.Scatter(x=stock_data.index, y=stock_data['Bollinger_down'],
