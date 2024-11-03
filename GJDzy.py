@@ -26,6 +26,13 @@ if custom_code:
     start_date = (date_obj - timedelta(days=start_days)).strftime('%Y%m%d')
     end_date = (date_obj + timedelta(days=end_days)).strftime('%Y%m%d')
 
+    # 均线和布林线参数调节
+    ma_period_1 = st.slider("第一个均线周期", 1, 250, 5)
+    ma_period_2 = st.slider("第二个均线周期", 1, 250, 10)
+    ma_period_3 = st.slider("第三个均线周期", 1, 250, 20)
+    boll_period = st.slider("布林线周期", 1, 250, 20)
+    boll_std = st.slider("布林线标准差", 0.1, 5.0, 2.5)
+
     # 获取股票数据
     symbol = custom_code
     try:
@@ -54,40 +61,7 @@ if custom_code:
                 }
                 st.table(pd.DataFrame(today_data))
 
-                # 使用当日数据计算下一日的枢轴点、支撑/阻力位和斐波那契水平
-                H = today['最高']
-                L = today['最低']
-                C = today['收盘']
-
-                # 计算枢轴点和支撑/阻力位
-                P = (H + L + C) / 3
-                R1 = 2 * P - L
-                R2 = P + (H - L)
-                S1 = 2 * P - H
-                S2 = P - (H - L)
-
-                # 计算斐波那契回撤或扩展水平
-                fibonacci_38_2 = L + 0.382 * (H - L)
-                fibonacci_61_8 = L + 0.618 * (H - L)
-
-                # 在表格中展示这些计算信息
-                st.write("基于当前日期计算的下一日支撑位和阻力位")
-                pivot_data = {
-                    "枢轴点 (P)": [P],
-                    "阻力位1 (R1)": [R1],
-                    "阻力位2 (R2)": [R2],
-                    "支撑位1 (S1)": [S1],
-                    "支撑位2 (S2)": [S2],
-                    "斐波那契 38.2%": [fibonacci_38_2],
-                    "斐波那契 61.8%": [fibonacci_61_8],
-                }
-                st.table(pd.DataFrame(pivot_data))
-
-                # 计算均线和布林线参数
-                ma_period_1, ma_period_2, ma_period_3 = 5, 10, 20
-                boll_period, boll_std = 20, 2.5
-
-                # 当日均线和布林线值
+                # 计算当日和下一日的均线和布林线参数
                 today_ma1 = stock_data['收盘'].rolling(window=ma_period_1).mean().loc[date_obj]
                 today_ma2 = stock_data['收盘'].rolling(window=ma_period_2).mean().loc[date_obj]
                 today_ma3 = stock_data['收盘'].rolling(window=ma_period_3).mean().loc[date_obj]
@@ -107,7 +81,7 @@ if custom_code:
                 # 均线和布林线参数信息表格展示
                 st.write("均线和布林线参数计算信息")
                 ma_boll_data = {
-                    "参数名称": ["MA5", "MA10", "MA20", "布林线上轨", "布林线下轨"],
+                    "参数名称": ["MA" + str(ma_period_1), "MA" + str(ma_period_2), "MA" + str(ma_period_3), "布林线上轨", "布林线下轨"],
                     "当日值": [today_ma1, today_ma2, today_ma3, today_boll_up, today_boll_down],
                     "下一日值": [next_day_ma1, next_day_ma2, next_day_ma3, next_day_boll_up, next_day_boll_down]
                 }
@@ -129,16 +103,16 @@ if custom_code:
             ))
 
             # 添加均线数据
-            stock_data['MA5'] = stock_data['收盘'].rolling(window=ma_period_1).mean()
-            stock_data['MA10'] = stock_data['收盘'].rolling(window=ma_period_2).mean()
-            stock_data['MA20'] = stock_data['收盘'].rolling(window=ma_period_3).mean()
-            fig.add_trace(go.Scatter(x=stock_data.index, y=stock_data['MA5'], mode='lines', name='MA5'))
-            fig.add_trace(go.Scatter(x=stock_data.index, y=stock_data['MA10'], mode='lines', name='MA10'))
-            fig.add_trace(go.Scatter(x=stock_data.index, y=stock_data['MA20'], mode='lines', name='MA20'))
+            stock_data[f'MA{ma_period_1}'] = stock_data['收盘'].rolling(window=ma_period_1).mean()
+            stock_data[f'MA{ma_period_2}'] = stock_data['收盘'].rolling(window=ma_period_2).mean()
+            stock_data[f'MA{ma_period_3}'] = stock_data['收盘'].rolling(window=ma_period_3).mean()
+            fig.add_trace(go.Scatter(x=stock_data.index, y=stock_data[f'MA{ma_period_1}'], mode='lines', name=f'MA{ma_period_1}'))
+            fig.add_trace(go.Scatter(x=stock_data.index, y=stock_data[f'MA{ma_period_2}'], mode='lines', name=f'MA{ma_period_2}'))
+            fig.add_trace(go.Scatter(x=stock_data.index, y=stock_data[f'MA{ma_period_3}'], mode='lines', name=f'MA{ma_period_3}'))
 
             # 添加布林线数据
-            stock_data['Bollinger_up'] = stock_data['MA20'] + boll_std * stock_data['收盘'].rolling(window=boll_period).std()
-            stock_data['Bollinger_down'] = stock_data['MA20'] - boll_std * stock_data['收盘'].rolling(window=boll_period).std()
+            stock_data['Bollinger_up'] = stock_data[f'MA{ma_period_3}'] + boll_std * stock_data['收盘'].rolling(window=boll_period).std()
+            stock_data['Bollinger_down'] = stock_data[f'MA{ma_period_3}'] - boll_std * stock_data['收盘'].rolling(window=boll_period).std()
             fig.add_trace(go.Scatter(x=stock_data.index, y=stock_data['Bollinger_up'],
                                      mode='lines', name='布林线上轨', line=dict(dash='dot', color='purple')))
             fig.add_trace(go.Scatter(x=stock_data.index, y=stock_data['Bollinger_down'],
@@ -160,4 +134,5 @@ if custom_code:
 
 else:
     st.write("请输入有效的股票代码。")
+
 
