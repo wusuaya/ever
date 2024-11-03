@@ -39,10 +39,10 @@ valid_codes = filtered_data['First 6 Digits'].unique()
 custom_code = st.text_input("输入股票代码（6位数字）", "")
 selected_code = custom_code.zfill(6)  # 确保输入为6位数字
 
-# 获取选择的行
-selected_row = filtered_data[filtered_data['First 6 Digits'] == selected_code]
-
-if not selected_row.empty:
+if selected_code in valid_codes:
+    # 获取选择的行
+    selected_row = filtered_data[filtered_data['First 6 Digits'] == selected_code]
+    
     # 获取聊天信息并显示原文
     message_content = selected_row['Message'].values[0]
     st.write("聊天信息:", message_content)
@@ -128,22 +128,16 @@ if not selected_row.empty:
 
             # 均线和布林线参数调节 - 增加输入框和滑块
             ma_period_1 = st.number_input("输入第一个均线周期参数", min_value=1, max_value=250, value=5)
-            ma_period_1_slider = st.slider("选择第一个均线周期参数 (滑块)", 1, 250, 5)
             ma_period_2 = st.number_input("输入第二个均线周期参数", min_value=1, max_value=250, value=10)
-            ma_period_2_slider = st.slider("选择第二个均线周期参数 (滑块)", 1, 250, 10)
             ma_period_3 = st.number_input("输入第三个均线周期参数", min_value=1, max_value=250, value=20)
-            ma_period_3_slider = st.slider("选择第三个均线周期参数 (滑块)", 1, 250, 20)
             boll_period = st.number_input("输入布林线周期参数", min_value=1, max_value=250, value=20)
-            boll_period_slider = st.slider("选择布林线周期参数 (滑块)", 1, 250, 20)
             boll_std = st.number_input("输入布林线标准差参数", min_value=0.1, max_value=5.0, value=2.5)
-            boll_std_slider = st.slider("选择布林线标准差参数 (滑块)", 0.1, 5.0, 2.5)
 
             # 将计算的均线和布林线值展示为图表
             st.write("均线和布林线参数计算信息")
             ma_boll_data = {
                 "参数名称": ["第一个均线周期", "第二个均线周期", "第三个均线周期", "布林线周期", "布林线标准差"],
                 "输入值": [ma_period_1, ma_period_2, ma_period_3, boll_period, boll_std],
-                "滑块选择值": [ma_period_1_slider, ma_period_2_slider, ma_period_3_slider, boll_period_slider, boll_std_slider]
             }
             st.table(pd.DataFrame(ma_boll_data))
 
@@ -174,5 +168,5 @@ if not selected_row.empty:
             fig.update_layout(title=f'{symbol} 股票 K线图', xaxis_title='日期', yaxis_title='价格', xaxis_rangeslider_visible=False)
             st.plotly_chart(fig)
 
-except Exception as e:
-    st.error(f"出现错误: {e}")
+    except Exception as e:
+        st.error(f"出现错误: {e}")
