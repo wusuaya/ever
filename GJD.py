@@ -63,6 +63,67 @@ if not selected_row.empty:
             stock_data['日期'] = pd.to_datetime(stock_data['日期'])
             stock_data.set_index('日期', inplace=True)
 
+            # 获取当日及下一日数据
+            if date_obj in stock_data.index:
+                today = stock_data.loc[date_obj]
+                next_day = stock_data.loc[date_obj + timedelta(days=1)] if (date_obj + timedelta(days=1)) in stock_data.index else None
+
+                # 展示当日和下一日的开盘、收盘、最高、最低信息
+                st.write("当日和下一日价格信息")
+                today_data = {
+                    "日期": [date_obj.strftime('%Y-%m-%d'), (date_obj + timedelta(days=1)).strftime('%Y-%m-%d')],
+                    "开盘价": [today['开盘'], next_day['开盘'] if next_day is not None else None],
+                    "收盘价": [today['收盘'], next_day['收盘'] if next_day is not None else None],
+                    "最高价": [today['最高'], next_day['最高'] if next_day is not None else None],
+                    "最低价": [today['最低'], next_day['最低'] if next_day is not None else None],
+                }
+                st.table(pd.DataFrame(today_data))
+
+                # 使用当日数据计算下一日的枢轴点、支撑/阻力位和斐波那契水平
+                H = today['最高']
+                L = today['最低']
+                C = today['收盘']
+
+                # 计算枢轴点和支撑/阻力位
+                P = (H + L + C) / 3
+                R1 = 2 * P - L
+                R2 = P + (H - L)
+                S1 = 2 * P - H
+                S2 = P - (H - L)
+
+                # 计算斐波那契回撤或扩展水平
+                fibonacci_38_2 = L + 0.382 * (H - L)
+                fibonacci_61_8 = L + 0.618 * (H - L)
+
+                # 在表格中展示这些计算信息
+                st.write("基于当前日期计算的下一日支撑位和阻力位")
+                pivot_data = {
+                    "枢轴点 (P)": [P],
+                    "阻力位1 (R1)": [R1],
+                    "阻力位2 (R2)": [R2],
+                    "支撑位1 (S1)": [S1],
+                    "支撑位2 (S2)": [S2],
+                    "斐波那契 38.2%": [fibonacci_38_2],
+                    "斐波那契 61.8%": [fibonacci_61_8],
+                }
+                st.table(pd.DataFrame(pivot_data))
+
+                # 计算七分位信息，包括零轴和负数部分七档
+                prev_close = C
+                high_limit = prev_close * 1.1 if symbol.startswith("6") or symbol.startswith("0") else prev_close * 1.2
+                range_size = (high_limit - prev_close) / 7
+                positive_segments = [prev_close + i * range_size for i in range(1, 8)]
+                negative_segments = [prev_close - i * range_size for i in range(1, 8)]
+                seven_segments = negative_segments[::-1] + [prev_close] + positive_segments
+
+                # 七分位信息表格展示
+                st.write("基于当前日期收盘价的下一日七分位信息")
+                seven_segment_data = {
+                    "位置": ["负七分位", "负六分位", "负五分位", "负四分位", "负三分位", "负二分位", "负一分位", "零轴（前收）", "正一分位", "正二分位", "正三分位", "正四分位", "正五分位", "正六分位", "正七分位"],
+                    "价格": seven_segments
+                }
+                st.table(pd.DataFrame(seven_segment_data))
+
             # 均线和布林线参数调节
             ma_period_1_slider = st.slider("选择第一个均线周期参数 (滑块)", 1, 250, 5)
             ma_period_2_slider = st.slider("选择第二个均线周期参数 (滑块)", 1, 250, 10)
@@ -70,15 +131,16 @@ if not selected_row.empty:
             boll_period_slider = st.slider("选择布林线周期参数 (滑块)", 1, 250, 20)
             boll_std_slider = st.slider("选择布林线标准差参数 (滑块)", 0.1, 5.0, 2.5)
 
-            # 计算均线
+            # 计算均线和布林线
             stock_data[f"MA{ma_period_1_slider}"] = stock_data['收盘'].rolling(window=ma_period_1_slider).mean()
             stock_data[f"MA{ma_period_2_slider}"] = stock_data['收盘'].rolling(window=ma_period_2_slider).mean()
             stock_data[f"MA{ma_period_3_slider}"] = stock_data['收盘'].rolling(window=ma_period_3_slider).mean()
-
-            # 计算布林线
             stock_data['MA20'] = stock_data['收盘'].rolling(window=boll_period_slider).mean()
             stock_data['Bollinger_up'] = stock_data['MA20'] + boll_std_slider * stock_data['收盘'].rolling(window=boll_period_slider).std()
             stock_data['Bollinger_down'] = stock_data['MA20'] - boll_std_slider * stock_data['收盘'].rolling(window=boll_period_slider).std()
+
+            # 展示当日、下一日和下两日的均线和布林线参数值
+            st.write("当日、下一日和下两日的均线和布林线参数信息")
 
             # 选择显示的日期
             dates_to_display = [date_obj, date_obj + timedelta(days=1), date_obj + timedelta(days=2)]
@@ -151,4 +213,5 @@ if not selected_row.empty:
         st.write(f"获取股票数据失败：{e}")
 else:
     st.write("无数据可展示")
+
 
