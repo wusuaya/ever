@@ -63,6 +63,10 @@ if st.button("新闻联播文字稿"):
     st.write("正在下载数据...")
     news_cctv_df = ak.news_cctv(date=today.strftime("%Y%m%d"))
     if news_cctv_df.empty:
+        # Try fetching data from the previous day if today's data is not available
+        previous_day = today - datetime.timedelta(days=1)
+        news_cctv_df = ak.news_cctv(date=previous_day.strftime("%Y%m%d"))
+    if news_cctv_df.empty:
         st.write("暂无数据")
     else:
-        st.write(news_cctv_df)
+        st.write(news_cctv_df.head(10))
