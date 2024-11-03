@@ -30,8 +30,8 @@ if custom_code:
 
     # 转换日期格式
     date_obj = datetime.strptime(selected_date, '%Y-%m-%d')
-    start_date = (date_obj - timedelta(days=start_days)).strftime('%Y-%m-%d')
-    end_date = (date_obj + timedelta(days=end_days)).strftime('%Y-%m-%d')
+    start_date = (date_obj - timedelta(days=start_days)).strftime('%Y%m%d')
+    end_date = (date_obj + timedelta(days=end_days)).strftime('%Y%m%d')
 
     # 均线和布林线参数调节
     ma_period_1 = st.slider("第一个均线周期", 1, 250, 5)
@@ -43,7 +43,7 @@ if custom_code:
     # 获取股票历史数据
     symbol = custom_code
     try:
-        stock_data = ak.stock_zh_a_hist(symbol=symbol, period="daily", start_date=start_date.replace('-', ''), end_date=end_date.replace('-', ''), adjust="qfq")
+        stock_data = ak.stock_zh_a_hist(symbol=symbol, period="daily", start_date=start_date, end_date=end_date, adjust="qfq")
         if stock_data.empty:
             st.write("未能获取股票数据，请检查日期和代码的有效性")
         else:
@@ -161,7 +161,7 @@ if custom_code:
         hot_data.set_index('时间', inplace=True)
 
         # 筛选出与K线图匹配的日期范围的数据
-        filtered_hot_data = hot_data[(hot_data.index >= start_date) & (hot_data.index <= end_date)]
+        filtered_hot_data = hot_data[(hot_data.index >= pd.to_datetime(start_date)) & (hot_data.index <= pd.to_datetime(end_date))]
 
         # 绘制热度排名变化图
         fig2 = go.Figure()
@@ -189,5 +189,6 @@ if custom_code:
 
 else:
     st.write("请输入有效的股票代码。")
+
 
 
