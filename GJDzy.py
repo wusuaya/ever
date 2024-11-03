@@ -5,38 +5,71 @@ import plotly.graph_objects as go
 from datetime import datetime, timedelta
 import os
 
+# 读取数据文件
+data_file_path = 'modified_chat_records.xlsx'
+
+# 检查文件是否存在，如果不存在则要求用户上传
+if not os.path.exists(data_file_path):
+    uploaded_file = st.file_uploader("上传聊天记录文件", type="xlsx")
+    if uploaded_file is not None:
+        with open(data_file_path, "wb") as f:
+            f.write(uploaded_file.getbuffer())
+        st.success("文件上传成功！")
+    else:
+        st.stop()
+
+data = pd.read_excel(data_file_path)
+
+# 清理和过滤有效股票代码
+data = data[pd.to_numeric(data['First 6 Digits'], errors='coerce').notna()]
+data['First 6 Digits'] = data['First 6 Digits'].astype(int).astype(str).str.zfill(6)
+
 # Streamlit 界面
-st.title("股票K线图分析")
+st.title("股票聊天记录和K线图分析")
 
-# 股票代码输入
-selected_code = st.text_input("输入股票代码（正式6位数字）", "")
+# 自由定义日期输入
+date_input = st.text_input("输入日期 (格式: YYYY-MM-DD)", value=datetime.now().strftime('%Y-%m-%d'))
 
-# 初始日期输入
-selected_date = st.date_input("选择日期", datetime.today())
+# 日期格式转换
+try:
+    selected_date = datetime.strptime(date_input, '%Y-%m-%d').strftime('%Y-%m-%d')
+except ValueError:
+    st.error("日期格式无效，请输入 YYYY-MM-DD 格式的日期。")
+    st.stop()
 
-# 设置开始和结束日期的选择
-start_days = st.selectbox("选择开始日期前多少天", options=[10, 20, 30, 60, 120])
-end_days = st.selectbox("选择结束日期后多少天", options=[5, 10])
+# 根据选择的日期筛选股票代码
+filtered_data = data[data['Date'] == selected_date]
+valid_codes = filtered_data['First 6 Digits'].unique()
 
-# 计算开始和结束日期
-date_obj = selected_date
-start_date = (date_obj - timedelta(days=start_days)).strftime('%Y%m%d')
-end_date = (date_obj + timedelta(days=end_days)).strftime('%Y%m%d')
+# 自由定义股票代码输入
+code_input = st.text_input("输入股票代码", value="600000")  # 默认值可以根据实际情况更改
+selected_code = code_input.strip().zfill(6)  # 确保股票代码是6位
 
-# 获取股票数据
-symbol = selected_code.strip()
-if len(symbol) == 6 and symbol.isdigit():
-    # 自动匹配前缀
-    if symbol.startswith('6'):
-        symbol = 'sh' + symbol
-    elif symbol.startswith('0') or symbol.startswith('3'):
-        symbol = 'sz' + symbol
-    
+# 检查股票代码是否有效
+if selected_code not in valid_codes:
+    st.error("输入的股票代码无效，请确保代码在数据中存在。")
+    st.stop()
+
+# 获取选择的行
+selected_row = filtered_data[filtered_data['First 6 Digits'] == selected_code]
+
+if not selected_row.empty:
+    # 获取聊天信息并显示原文
+    message_content = selected_row['Message'].values[0]
+    st.write("聊天信息:", message_content)
+
+    # 转换日期格式
+    date_obj = datetime.strptime(selected_date, '%Y-%m-%d')
+    start_date = (date_obj - timedelta(days=60)).strftime('%Y%m%d')
+    end_date = (date_obj + timedelta(days=10)).strftime('%Y%m%d')
+
+    # 获取股票数据
+    symbol = selected_code
     try:
         # 使用 akshare 获取数据
         stock_data = ak.stock_zh_a_hist(symbol=symbol, period="daily", start_date=start_date, end_date=end_date, adjust="qfq")
         if stock_data.empty:
-            st.write(f"未能获取股票数据，请检查日期和代码的有效性：'{symbol}'")
+            st.write("未能获取股票数据，请检查日期和代码的有效性")
         else:
             # 将日期转换为datetime对象，方便比较
             stock_data['日期'] = pd.to_datetime(stock_data['日期'])
@@ -58,26 +91,26 @@ if len(symbol) == 6 and symbol.isdigit():
                 }
                 st.table(pd.DataFrame(today_data))
 
-                # 使用当日数据计算下一日的查点、支撑/阻力位和斐波那契氏水平
+                # 使用当日数据计算下一日的枢轴点、支撑/阻力位和斐波那契水平
                 H = today['最高']
                 L = today['最低']
                 C = today['收盘']
 
-                # 计算查点和支撑/阻力位
+                # 计算枢轴点和支撑/阻力位
                 P = (H + L + C) / 3
                 R1 = 2 * P - L
                 R2 = P + (H - L)
                 S1 = 2 * P - H
                 S2 = P - (H - L)
 
-                # 计算斐波那契氏水平
+                # 计算斐波那契回撤或扩展水平
                 fibonacci_38_2 = L + 0.382 * (H - L)
                 fibonacci_61_8 = L + 0.618 * (H - L)
 
                 # 在表格中展示这些计算信息
                 st.write("基于当前日期计算的下一日支撑位和阻力位")
                 pivot_data = {
-                    "查点 (P)": [P],
+                    "枢轴点 (P)": [P],
                     "阻力位1 (R1)": [R1],
                     "阻力位2 (R2)": [R2],
                     "支撑位1 (S1)": [S1],
@@ -89,7 +122,7 @@ if len(symbol) == 6 and symbol.isdigit():
 
                 # 计算七分位信息，包括零轴和负数部分七档
                 prev_close = C
-                high_limit = prev_close * 1.1 if symbol.startswith("sh") or symbol.startswith("sz") else prev_close * 1.2
+                high_limit = prev_close * 1.1 if symbol.startswith("6") or symbol.startswith("0") else prev_close * 1.2
                 high_limit = round(high_limit, 2)  # 考虑到可能的9.95%涨停情况
                 range_size = (high_limit - prev_close) / 7
                 positive_segments = [prev_close + i * range_size for i in range(1, 8)]
@@ -121,52 +154,19 @@ if len(symbol) == 6 and symbol.isdigit():
             ma_boll_data = {
                 "参数名称": ["第一个均线周期", "第二个均线周期", "第三个均线周期", "布林线周期", "布林线标准差"],
                 "输入值": [ma_period_1, ma_period_2, ma_period_3, boll_period, boll_std],
-                "滑块选择值": [ma_period_1_slider, ma_period_2_slider, ma_period_3_slider, boll_period_slider, boll_std_slider]
+                "滑块选择": [ma_period_1_slider, ma_period_2_slider, ma_period_3_slider, boll_period_slider, boll_std_slider]
             }
             st.table(pd.DataFrame(ma_boll_data))
 
-            # 绘制交互式K线图
-            fig = go.Figure()
-
-            # 添加K线数据
-            fig.add_trace(go.Candlestick(x=stock_data.index,
-                                         open=stock_data['开盘'],
-                                         high=stock_data['最高'],
-                                         low=stock_data['最低'],
-                                         close=stock_data['收盘'],
-                                         name='K线',
-                                         increasing_line_color='red',
-                                         decreasing_line_color='green'))
-
-            # 添加均线数据
-            for ma_period in [ma_period_1_slider, ma_period_2_slider, ma_period_3_slider]:
-                stock_data[f"MA{ma_period}"] = stock_data['收盘'].rolling(window=ma_period).mean()
-                fig.add_trace(go.Scatter(x=stock_data.index, y=stock_data[f"MA{ma_period}"],
-                                         mode='lines', name=f'MA{ma_period}'))
-
-            # 添加布林线数据
-            stock_data['MA20'] = stock_data['收盘'].rolling(window=boll_period_slider).mean()
-            stock_data['Bollinger_up'] = stock_data['MA20'] + boll_std_slider * stock_data['收盘'].rolling(window=boll_period_slider).std()
-            stock_data['Bollinger_down'] = stock_data['MA20'] - boll_std_slider * stock_data['收盘'].rolling(window=boll_period_slider).std()
-
-            fig.add_trace(go.Scatter(x=stock_data.index, y=stock_data['Bollinger_up'],
-                                     mode='lines', name='布林线上轨', line=dict(dash='dot', color='purple')))
-            fig.add_trace(go.Scatter(x=stock_data.index, y=stock_data['Bollinger_down'],
-                                     mode='lines', name='布林线下轨', line=dict(dash='dot', color='purple')))
-
-            # 图表布局调整
-            fig.update_layout(
-                title=f"{symbol} 股票K线图",
-                xaxis_title="日期",
-                yaxis_title="价格",
-                xaxis_rangeslider_visible=False
-            )
-
-            # 显示图表
+            # 绘制K线图
+            fig = go.Figure(data=[go.Candlestick(x=stock_data.index,
+                                                  open=stock_data['开盘'],
+                                                  high=stock_data['最高'],
+                                                  low=stock_data['最低'],
+                                                  close=stock_data['收盘'])])
+            fig.update_layout(title=f"{selected_code} K线图", xaxis_title='日期', yaxis_title='价格', xaxis_rangeslider_visible=False)
             st.plotly_chart(fig)
 
-    except Exception as e:
-        st.write(f"获取股票数据失败：{e}")
-else:
-    st.write("请输入有效的6位数字股票代码")
+except Exception as e:
+    st.error(f"出现错误: {e}")
 
