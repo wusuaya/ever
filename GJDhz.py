@@ -30,8 +30,8 @@ if custom_code:
 
     # 转换日期格式
     date_obj = datetime.strptime(selected_date, '%Y-%m-%d')
-    start_date = (date_obj - timedelta(days=start_days)).strftime('%Y%m%d')
-    end_date = (date_obj + timedelta(days=end_days)).strftime('%Y%m%d')
+    start_date = (date_obj - timedelta(days=start_days)).strftime('%Y-%m-%d')
+    end_date = (date_obj + timedelta(days=end_days)).strftime('%Y-%m-%d')
 
     # 均线和布林线参数调节
     ma_period_1 = st.slider("第一个均线周期", 1, 250, 5)
@@ -43,7 +43,7 @@ if custom_code:
     # 获取股票历史数据
     symbol = custom_code
     try:
-        stock_data = ak.stock_zh_a_hist(symbol=symbol, period="daily", start_date=start_date, end_date=end_date, adjust="qfq")
+        stock_data = ak.stock_zh_a_hist(symbol=symbol, period="daily", start_date=start_date.replace('-', ''), end_date=end_date.replace('-', ''), adjust="qfq")
         if stock_data.empty:
             st.write("未能获取股票数据，请检查日期和代码的有效性")
         else:
@@ -155,27 +155,32 @@ if custom_code:
 
     # 获取股票热度排名数据
     try:
-        hot_data = ak.stock_hot_rank_detail_em(symbol=full_code, start_date=start_date, end_date=end_date)
+        # 获取所有历史热度数据
+        hot_data = ak.stock_hot_rank_detail_em(symbol=full_code)
         hot_data['时间'] = pd.to_datetime(hot_data['时间'])
         hot_data.set_index('时间', inplace=True)
 
+        # 筛选出与K线图匹配的日期范围的数据
+        filtered_hot_data = hot_data[(hot_data.index >= start_date) & (hot_data.index <= end_date)]
+
+        # 绘制热度排名变化图
         fig2 = go.Figure()
-        fig2.add_trace(go.Scatter(x=hot_data.index, y=-hot_data['排名'], mode='lines+markers', line=dict(color='purple'), name='热度排名 (倒数)'))
+        fig2.add_trace(go.Scatter(x=filtered_hot_data.index, y=-filtered_hot_data['排名'], mode='lines+markers', line=dict(color='purple'), name='热度排名 (倒数)'))
         fig2.update_layout(title="热度排名变化", xaxis_title="时间", yaxis_title="排名（倒数）", hovermode="x")
         st.plotly_chart(fig2)
 
         # MACD参数设置
         short_period = st.slider("MACD短期周期", 5, 20, 12)
         long_period = st.slider("MACD长期周期", 20, 50, 26)
-        hot_data['新晋粉丝_Short_EMA'] = hot_data['新晋粉丝'].ewm(span=short_period, adjust=False).mean()
-        hot_data['新晋粉丝_Long_EMA'] = hot_data['新晋粉丝'].ewm(span=long_period, adjust=False).mean()
-        hot_data['新晋粉丝_MACD'] = hot_data['新晋粉丝_Short_EMA'] - hot_data['新晋粉丝_Long_EMA']
-        hot_data['新晋粉丝_Signal'] = hot_data['新晋粉丝_MACD'].ewm(span=9, adjust=False).mean()
+        filtered_hot_data['新晋粉丝_Short_EMA'] = filtered_hot_data['新晋粉丝'].ewm(span=short_period, adjust=False).mean()
+        filtered_hot_data['新晋粉丝_Long_EMA'] = filtered_hot_data['新晋粉丝'].ewm(span=long_period, adjust=False).mean()
+        filtered_hot_data['新晋粉丝_MACD'] = filtered_hot_data['新晋粉丝_Short_EMA'] - filtered_hot_data['新晋粉丝_Long_EMA']
+        filtered_hot_data['新晋粉丝_Signal'] = filtered_hot_data['新晋粉丝_MACD'].ewm(span=9, adjust=False).mean()
 
         fig3 = go.Figure()
-        fig3.add_trace(go.Scatter(x=hot_data.index, y=hot_data['新晋粉丝_MACD'], mode='lines', line=dict(color='blue'), name='新晋粉丝MACD'))
-        fig3.add_trace(go.Scatter(x=hot_data.index, y=hot_data['新晋粉丝_Signal'], mode='lines', line=dict(color='orange'), name='信号线'))
-        fig3.add_trace(go.Bar(x=hot_data.index, y=hot_data['新晋粉丝_MACD'] - hot_data['新晋粉丝_Signal'], name='新晋粉丝MACD差值', marker_color='gray'))
+        fig3.add_trace(go.Scatter(x=filtered_hot_data.index, y=filtered_hot_data['新晋粉丝_MACD'], mode='lines', line=dict(color='blue'), name='新晋粉丝MACD'))
+        fig3.add_trace(go.Scatter(x=filtered_hot_data.index, y=filtered_hot_data['新晋粉丝_Signal'], mode='lines', line=dict(color='orange'), name='信号线'))
+        fig3.add_trace(go.Bar(x=filtered_hot_data.index, y=filtered_hot_data['新晋粉丝_MACD'] - filtered_hot_data['新晋粉丝_Signal'], name='新晋粉丝MACD差值', marker_color='gray'))
         fig3.update_layout(title="新晋粉丝MACD", xaxis_title="时间", yaxis_title="MACD值", hovermode="x")
         st.plotly_chart(fig3)
 
