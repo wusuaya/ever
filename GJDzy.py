@@ -6,10 +6,10 @@ from datetime import datetime, timedelta
 import os
 
 # Streamlit 界面
-st.title("股票聊天记录和K线图分析")
+st.title("股票K线图分析")
 
 # 股票代码输入
-selected_code = st.text_input("输入股票代码（6位数字）", "")
+selected_code = st.text_input("输入股票代码（正式6位数字）", "")
 
 # 初始日期输入
 selected_date = st.date_input("选择日期", datetime.today())
@@ -26,7 +26,7 @@ end_date = (date_obj + timedelta(days=end_days)).strftime('%Y%m%d')
 # 获取股票数据
 symbol = selected_code.strip()
 if len(symbol) == 6 and symbol.isdigit():
-    # 自动匹配前缀，并移除点
+    # 自动匹配前缀
     if symbol.startswith('6'):
         symbol = 'sh' + symbol
     elif symbol.startswith('0') or symbol.startswith('3'):
@@ -36,7 +36,7 @@ if len(symbol) == 6 and symbol.isdigit():
         # 使用 akshare 获取数据
         stock_data = ak.stock_zh_a_hist(symbol=symbol, period="daily", start_date=start_date, end_date=end_date, adjust="qfq")
         if stock_data.empty:
-            st.write(f"未能获取股票数据，请检查日期和代码的有效性: '{symbol}'")
+            st.write(f"未能获取股票数据，请检查日期和代码的有效性：'{symbol}'")
         else:
             # 将日期转换为datetime对象，方便比较
             stock_data['日期'] = pd.to_datetime(stock_data['日期'])
@@ -58,26 +58,26 @@ if len(symbol) == 6 and symbol.isdigit():
                 }
                 st.table(pd.DataFrame(today_data))
 
-                # 使用当日数据计算下一日的枢轴点、支撑/阻力位和斐波那契水平
+                # 使用当日数据计算下一日的查点、支撑/阻力位和斐波那契氏水平
                 H = today['最高']
                 L = today['最低']
                 C = today['收盘']
 
-                # 计算枢轴点和支撑/阻力位
+                # 计算查点和支撑/阻力位
                 P = (H + L + C) / 3
                 R1 = 2 * P - L
                 R2 = P + (H - L)
                 S1 = 2 * P - H
                 S2 = P - (H - L)
 
-                # 计算斐波那契回撤或扩展水平
+                # 计算斐波那契氏水平
                 fibonacci_38_2 = L + 0.382 * (H - L)
                 fibonacci_61_8 = L + 0.618 * (H - L)
 
                 # 在表格中展示这些计算信息
                 st.write("基于当前日期计算的下一日支撑位和阻力位")
                 pivot_data = {
-                    "枢轴点 (P)": [P],
+                    "查点 (P)": [P],
                     "阻力位1 (R1)": [R1],
                     "阻力位2 (R2)": [R2],
                     "支撑位1 (S1)": [S1],
