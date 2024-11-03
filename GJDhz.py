@@ -50,14 +50,15 @@ if custom_code:
             stock_data['日期'] = pd.to_datetime(stock_data['日期'])
             stock_data.set_index('日期', inplace=True)
 
-            # 获取当日及下一日价格信息
+            # 获取当日及下一个交易日的信息
             if date_obj in stock_data.index:
                 today = stock_data.loc[date_obj]
-                next_day = stock_data.loc[date_obj + timedelta(days=1)] if (date_obj + timedelta(days=1)) in stock_data.index else None
+                next_date = stock_data.index[stock_data.index.get_loc(date_obj) + 1] if date_obj in stock_data.index[:-1] else None
+                next_day = stock_data.loc[next_date] if next_date is not None else None
 
-                st.write("当日和下一日价格信息")
+                st.write("当日和下一交易日价格信息")
                 today_data = {
-                    "日期": [date_obj.strftime('%Y-%m-%d'), (date_obj + timedelta(days=1)).strftime('%Y-%m-%d')],
+                    "日期": [date_obj.strftime('%Y-%m-%d'), next_date.strftime('%Y-%m-%d') if next_date else None],
                     "开盘价": [today['开盘'], next_day['开盘'] if next_day is not None else None],
                     "收盘价": [today['收盘'], next_day['收盘'] if next_day is not None else None],
                     "最高价": [today['最高'], next_day['最高'] if next_day is not None else None],
@@ -107,10 +108,20 @@ if custom_code:
                 today_boll_up = stock_data['收盘'].rolling(window=boll_period).mean().loc[date_obj] + boll_std * stock_data['收盘'].rolling(window=boll_period).std().loc[date_obj]
                 today_boll_down = stock_data['收盘'].rolling(window=boll_period).mean().loc[date_obj] - boll_std * stock_data['收盘'].rolling(window=boll_period).std().loc[date_obj]
 
+                if next_day is not None:
+                    next_day_ma1 = stock_data['收盘'].rolling(window=ma_period_1).mean().loc[next_date]
+                    next_day_ma2 = stock_data['收盘'].rolling(window=ma_period_2).mean().loc[next_date]
+                    next_day_ma3 = stock_data['收盘'].rolling(window=ma_period_3).mean().loc[next_date]
+                    next_day_boll_up = stock_data['收盘'].rolling(window=boll_period).mean().loc[next_date] + boll_std * stock_data['收盘'].rolling(window=boll_period).std().loc[next_date]
+                    next_day_boll_down = stock_data['收盘'].rolling(window=boll_period).mean().loc[next_date] - boll_std * stock_data['收盘'].rolling(window=boll_period).std().loc[next_date]
+                else:
+                    next_day_ma1 = next_day_ma2 = next_day_ma3 = next_day_boll_up = next_day_boll_down = None
+
                 st.write("均线和布林线参数计算信息")
                 ma_boll_data = {
                     "参数名称": [f"MA{ma_period_1}", f"MA{ma_period_2}", f"MA{ma_period_3}", "布林线上轨", "布林线下轨"],
-                    "当日值": [today_ma1, today_ma2, today_ma3, today_boll_up, today_boll_down]
+                    "当日值": [today_ma1, today_ma2, today_ma3, today_boll_up, today_boll_down],
+                    "下一交易日值": [next_day_ma1, next_day_ma2, next_day_ma3, next_day_boll_up, next_day_boll_down]
                 }
                 st.table(pd.DataFrame(ma_boll_data))
 
