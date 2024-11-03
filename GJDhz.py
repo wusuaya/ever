@@ -155,7 +155,7 @@ if custom_code:
 
     # 获取股票热度排名数据
     try:
-        hot_data = ak.stock_hot_rank_detail_em(symbol=full_code)
+        hot_data = ak.stock_hot_rank_detail_em(symbol=full_code, start_date=start_date, end_date=end_date)
         hot_data['时间'] = pd.to_datetime(hot_data['时间'])
         hot_data.set_index('时间', inplace=True)
 
