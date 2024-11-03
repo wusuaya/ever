@@ -9,7 +9,7 @@ st.title("财经新闻汇总")
 today = datetime.date.today()
 
 # User-defined parameter for number of rows to load
-loaded_count = st.selectbox("加载新闻条数：", options=[10, 20, 30, 40, 50, 100], index=1)
+loaded_count = st.selectbox("加载条数：", options=[10, 20, 30, 40, 50, 100], index=1)
 
 # Button for 东方财富-财经早餐
 if st.button("财经早餐 - 东方财富"):
