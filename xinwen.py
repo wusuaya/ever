@@ -69,4 +69,8 @@ if st.button("新闻联播文字稿"):
     if news_cctv_df.empty:
         st.write("暂无数据")
     else:
-        st.write(news_cctv_df.head(10))
+        loaded_count = 10
+        st.write(news_cctv_df.head(loaded_count))
+        if st.button("加载更多新闻联播文字稿"):
+            loaded_count += 10
+            st.write(news_cctv_df.head(loaded_count))
