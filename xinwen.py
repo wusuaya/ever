@@ -3,7 +3,7 @@ import akshare as ak
 import datetime
 
 # Set the title of the Streamlit app
-st.title("财经数据下载互动程序")
+st.title("财经新闻汇总")
 
 # Get today's date
 today = datetime.date.today()
