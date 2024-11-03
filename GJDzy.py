@@ -26,6 +26,12 @@ end_date = (date_obj + timedelta(days=end_days)).strftime('%Y%m%d')
 # 获取股票数据
 symbol = selected_code.strip()
 if len(symbol) == 6 and symbol.isdigit():
+    # 自动匹配前缀
+    if symbol.startswith('6'):
+        symbol = 'sh.' + symbol
+    elif symbol.startswith('0') or symbol.startswith('3'):
+        symbol = 'sz.' + symbol
+    
     try:
         # 使用 akshare 获取数据
         stock_data = ak.stock_zh_a_hist(symbol=symbol, period="daily", start_date=start_date, end_date=end_date, adjust="qfq")
