@@ -108,42 +108,44 @@ if not selected_row.empty:
                 }
                 st.table(pd.DataFrame(pivot_data))
 
-                # 计算七分位信息，包括零轴和负数部分七档
-                prev_close = C
-                high_limit = prev_close * 1.1 if symbol.startswith("6") or symbol.startswith("0") else prev_close * 1.2
-                high_limit = round(high_limit, 2)  # 考虑到可能的9.95%涨停情况
-                range_size = (high_limit - prev_close) / 7
-                positive_segments = [prev_close + i * range_size for i in range(1, 8)]
-                negative_segments = [prev_close - i * range_size for i in range(1, 8)]
-                seven_segments = negative_segments[::-1] + [prev_close] + positive_segments
+            # 展示当日、下一日和下两日的均线和布林线参数值
+            st.write("当日、下一日和下两日的均线和布林线参数信息")
 
-                # 七分位信息表格展示
-                st.write("基于当前日期收盘价的下一日七分位信息")
-                seven_segment_data = {
-                    "位置": ["负七分位", "负六分位", "负五分位", "负四分位", "负三分位", "负二分位", "负一分位", "零轴（前收）", "正一分位", "正二分位", "正三分位", "正四分位", "正五分位", "正六分位", "正七分位"],
-                    "价格": seven_segments
-                }
-                st.table(pd.DataFrame(seven_segment_data))
+            # 计算当日、下一日和下两日的日期
+            next_day_1 = date_obj + timedelta(days=1)
+            next_day_2 = date_obj + timedelta(days=2)
 
-            # 均线和布林线参数调节 - 增加输入框和滑块
-            ma_period_1 = st.number_input("输入第一个均线周期参数", min_value=1, max_value=250, value=5)
+            # 创建一个包含当日、下一日和下两日的日期列表
+            dates_to_display = [date_obj, next_day_1, next_day_2]
+
+            # 均线和布林线参数调节
             ma_period_1_slider = st.slider("选择第一个均线周期参数 (滑块)", 1, 250, 5)
-            ma_period_2 = st.number_input("输入第二个均线周期参数", min_value=1, max_value=250, value=10)
             ma_period_2_slider = st.slider("选择第二个均线周期参数 (滑块)", 1, 250, 10)
-            ma_period_3 = st.number_input("输入第三个均线周期参数", min_value=1, max_value=250, value=20)
             ma_period_3_slider = st.slider("选择第三个均线周期参数 (滑块)", 1, 250, 20)
-            boll_period = st.number_input("输入布林线周期参数", min_value=1, max_value=250, value=20)
             boll_period_slider = st.slider("选择布林线周期参数 (滑块)", 1, 250, 20)
-            boll_std = st.number_input("输入布林线标准差参数", min_value=0.1, max_value=5.0, value=2.5)
             boll_std_slider = st.slider("选择布林线标准差参数 (滑块)", 0.1, 5.0, 2.5)
 
-            # 将计算的均线和布林线值展示为图表
-            st.write("均线和布林线参数计算信息")
+            # 获取均线和布林线参数的值
             ma_boll_data = {
-                "参数名称": ["第一个均线周期", "第二个均线周期", "第三个均线周期", "布林线周期", "布林线标准差"],
-                "输入值": [ma_period_1, ma_period_2, ma_period_3, boll_period, boll_std],
-                "滑块选择值": [ma_period_1_slider, ma_period_2_slider, ma_period_3_slider, boll_period_slider, boll_std_slider]
+                "日期": [],
+                "第一个均线周期": [],
+                "第二个均线周期": [],
+                "第三个均线周期": [],
+                "布林线周期": [],
+                "布林线标准差": []
             }
+
+            for date in dates_to_display:
+                if date in stock_data.index:
+                    row = stock_data.loc[date]
+                    ma_boll_data["日期"].append(date.strftime('%Y-%m-%d'))
+                    ma_boll_data["第一个均线周期"].append(row[f"MA{ma_period_1_slider}"] if f"MA{ma_period_1_slider}" in row else None)
+                    ma_boll_data["第二个均线周期"].append(row[f"MA{ma_period_2_slider}"] if f"MA{ma_period_2_slider}" in row else None)
+                    ma_boll_data["第三个均线周期"].append(row[f"MA{ma_period_3_slider}"] if f"MA{ma_period_3_slider}" in row else None)
+                    ma_boll_data["布林线周期"].append(row['MA20'] if 'MA20' in row else None)
+                    ma_boll_data["布林线标准差"].append(boll_std_slider)
+
+            # 转换为DataFrame并展示
             st.table(pd.DataFrame(ma_boll_data))
 
             # 绘制交互式K线图
