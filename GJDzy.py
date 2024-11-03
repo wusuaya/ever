@@ -27,28 +27,17 @@ data['First 6 Digits'] = data['First 6 Digits'].astype(int).astype(str).str.zfil
 # Streamlit 界面
 st.title("股票聊天记录和K线图分析")
 
-# 自由定义日期输入
-date_input = st.text_input("输入日期 (格式: YYYY-MM-DD)", value=datetime.now().strftime('%Y-%m-%d'))
-
-# 日期格式转换
-try:
-    selected_date = datetime.strptime(date_input, '%Y-%m-%d').strftime('%Y-%m-%d')
-except ValueError:
-    st.error("日期格式无效，请输入 YYYY-MM-DD 格式的日期。")
-    st.stop()
+# 自定义日期输入
+custom_date = st.date_input("输入日期", datetime.today())
+selected_date = custom_date.strftime('%Y-%m-%d')
 
 # 根据选择的日期筛选股票代码
 filtered_data = data[data['Date'] == selected_date]
 valid_codes = filtered_data['First 6 Digits'].unique()
 
-# 自由定义股票代码输入
-code_input = st.text_input("输入股票代码", value="600000")  # 默认值可以根据实际情况更改
-selected_code = code_input.strip().zfill(6)  # 确保股票代码是6位
-
-# 检查股票代码是否有效
-if selected_code not in valid_codes:
-    st.error("输入的股票代码无效，请确保代码在数据中存在。")
-    st.stop()
+# 自定义股票代码输入
+custom_code = st.text_input("输入股票代码（6位数字）", "")
+selected_code = custom_code.zfill(6)  # 确保输入为6位数字
 
 # 获取选择的行
 selected_row = filtered_data[filtered_data['First 6 Digits'] == selected_code]
@@ -154,19 +143,36 @@ if not selected_row.empty:
             ma_boll_data = {
                 "参数名称": ["第一个均线周期", "第二个均线周期", "第三个均线周期", "布林线周期", "布林线标准差"],
                 "输入值": [ma_period_1, ma_period_2, ma_period_3, boll_period, boll_std],
-                "滑块选择": [ma_period_1_slider, ma_period_2_slider, ma_period_3_slider, boll_period_slider, boll_std_slider]
+                "滑块选择值": [ma_period_1_slider, ma_period_2_slider, ma_period_3_slider, boll_period_slider, boll_std_slider]
             }
             st.table(pd.DataFrame(ma_boll_data))
 
-            # 绘制K线图
-            fig = go.Figure(data=[go.Candlestick(x=stock_data.index,
-                                                  open=stock_data['开盘'],
-                                                  high=stock_data['最高'],
-                                                  low=stock_data['最低'],
-                                                  close=stock_data['收盘'])])
-            fig.update_layout(title=f"{selected_code} K线图", xaxis_title='日期', yaxis_title='价格', xaxis_rangeslider_visible=False)
+            # 绘制交互式K线图
+            fig = go.Figure()
+
+            # 添加K线数据
+            fig.add_trace(go.Candlestick(x=stock_data.index,
+                                         open=stock_data['开盘'],
+                                         high=stock_data['最高'],
+                                         low=stock_data['最低'],
+                                         close=stock_data['收盘'],
+                                         name='K线'))
+
+            # 绘制均线
+            for period in [ma_period_1, ma_period_2, ma_period_3]:
+                stock_data[f'MA{period}'] = stock_data['收盘'].rolling(window=period).mean()
+                fig.add_trace(go.Scatter(x=stock_data.index, y=stock_data[f'MA{period}'], mode='lines', name=f'MA{period}'))
+
+            # 绘制布林线
+            stock_data['MA'] = stock_data['收盘'].rolling(window=boll_period).mean()
+            stock_data['Upper'] = stock_data['MA'] + (stock_data['收盘'].rolling(window=boll_period).std() * boll_std)
+            stock_data['Lower'] = stock_data['MA'] - (stock_data['收盘'].rolling(window=boll_period).std() * boll_std)
+            fig.add_trace(go.Scatter(x=stock_data.index, y=stock_data['Upper'], mode='lines', name='Upper Band', line=dict(color='red', width=1)))
+            fig.add_trace(go.Scatter(x=stock_data.index, y=stock_data['Lower'], mode='lines', name='Lower Band', line=dict(color='red', width=1)))
+
+            # 更新布局和展示
+            fig.update_layout(title=f'{symbol} 股票 K线图', xaxis_title='日期', yaxis_title='价格', xaxis_rangeslider_visible=False)
             st.plotly_chart(fig)
 
 except Exception as e:
     st.error(f"出现错误: {e}")
-
