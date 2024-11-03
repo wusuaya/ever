@@ -26,17 +26,17 @@ end_date = (date_obj + timedelta(days=end_days)).strftime('%Y%m%d')
 # 获取股票数据
 symbol = selected_code.strip()
 if len(symbol) == 6 and symbol.isdigit():
-    # 自动匹配前缀
+    # 自动匹配前缀，并移除点
     if symbol.startswith('6'):
-        symbol = 'sh.' + symbol
+        symbol = 'sh' + symbol
     elif symbol.startswith('0') or symbol.startswith('3'):
-        symbol = 'sz.' + symbol
+        symbol = 'sz' + symbol
     
     try:
         # 使用 akshare 获取数据
         stock_data = ak.stock_zh_a_hist(symbol=symbol, period="daily", start_date=start_date, end_date=end_date, adjust="qfq")
         if stock_data.empty:
-            st.write("未能获取股票数据，请检查日期和代码的有效性")
+            st.write(f"未能获取股票数据，请检查日期和代码的有效性: '{symbol}'")
         else:
             # 将日期转换为datetime对象，方便比较
             stock_data['日期'] = pd.to_datetime(stock_data['日期'])
@@ -89,7 +89,7 @@ if len(symbol) == 6 and symbol.isdigit():
 
                 # 计算七分位信息，包括零轴和负数部分七档
                 prev_close = C
-                high_limit = prev_close * 1.1 if symbol.startswith("6") or symbol.startswith("0") else prev_close * 1.2
+                high_limit = prev_close * 1.1 if symbol.startswith("sh") or symbol.startswith("sz") else prev_close * 1.2
                 high_limit = round(high_limit, 2)  # 考虑到可能的9.95%涨停情况
                 range_size = (high_limit - prev_close) / 7
                 positive_segments = [prev_close + i * range_size for i in range(1, 8)]
@@ -154,12 +154,6 @@ if len(symbol) == 6 and symbol.isdigit():
             fig.add_trace(go.Scatter(x=stock_data.index, y=stock_data['Bollinger_down'],
                                      mode='lines', name='布林线下轨', line=dict(dash='dot', color='purple')))
 
-            # 提取并标记价格信息
-            if isinstance(message_content, str):
-                prices = [float(p) for p in message_content.split() if p.replace('.', '', 1).isdigit()]
-                for price in prices:
-                    fig.add_hline(y=price, line_dash='dash', line_color='blue')
-
             # 图表布局调整
             fig.update_layout(
                 title=f"{symbol} 股票K线图",
@@ -175,7 +169,4 @@ if len(symbol) == 6 and symbol.isdigit():
         st.write(f"获取股票数据失败：{e}")
 else:
     st.write("请输入有效的6位数字股票代码")
-
-
-
 
