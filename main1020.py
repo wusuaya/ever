@@ -2,23 +2,23 @@ import streamlit as st
 import akshare as ak
 import matplotlib.pyplot as plt
 import matplotlib.font_manager as fm
-import platform
+import os
 
-# 检查系统并设置中文字体路径
-if platform.system() == 'Windows':
-    font_path = "C:\\Windows\\Fonts\\simsun.ttc"
-elif platform.system() == 'Linux':
-    font_path = "/usr/share/fonts/truetype/wqy/wqy-zenhei.ttc"  # 示例路径
+# 设置字体文件名并构建路径
+FONT_FILENAME = "NotoSansMonoCJKsc-Regular.otf"
+font_path = os.path.join(os.getcwd(), FONT_FILENAME)
+
+# 检查字体文件是否存在并设置字体
+if not os.path.exists(font_path):
+    st.error(f"字体文件未找到：{font_path}")
 else:
-    font_path = "/System/Library/Fonts/PingFang.ttc"  # macOS 示例路径
-
-# 设置全局字体属性
-try:
-    plt.rcParams['font.family'] = fm.FontProperties(fname=font_path).get_name()
-    plt.rcParams['font.size'] = 12  # 设置全局字体大小
-    plt.rcParams['axes.unicode_minus'] = False  # 解决坐标轴负号显示问题
-except Exception as e:
-    st.error(f"字体加载错误：{e}")
+    try:
+        font_prop = fm.FontProperties(fname=font_path, size=12)
+        plt.rcParams['font.family'] = font_prop.get_name()
+        plt.rcParams['font.size'] = 12  # 设置字体大小
+        plt.rcParams['axes.unicode_minus'] = False  # 解决坐标轴负号显示问题
+    except Exception as e:
+        st.error(f"加载字体时出错：{e}")
 
 # 获取不同时间段数据的函数
 def get_weibo_data(time_period):
@@ -64,12 +64,11 @@ for i, (period, df) in enumerate(data_dict.items()):
         label=f"{period} 数据"
     )
 
-ax.set_title("微博舆情股票人气排名对比", fontproperties=fm.FontProperties(fname=font_path, size=14))
-ax.set_xlabel("股票名称", fontproperties=fm.FontProperties(fname=font_path, size=12))
-ax.set_ylabel("人气指数", fontproperties=fm.FontProperties(fname=font_path, size=12))
-ax.legend(prop=fm.FontProperties(fname=font_path, size=10))
-plt.xticks(rotation=45, fontproperties=fm.FontProperties(fname=font_path, size=10))
+ax.set_title("微博舆情股票人气排名对比", fontproperties=font_prop)
+ax.set_xlabel("股票名称", fontproperties=font_prop)
+ax.set_ylabel("人气指数", fontproperties=font_prop)
+ax.legend(prop=font_prop)
+plt.xticks(rotation=45, fontproperties=font_prop)
 
 # 在Streamlit中展示图表
 st.pyplot(fig)
-
