@@ -33,13 +33,13 @@ def show_weibo_report():
     for period in time_periods:
         try:
             df = ak.stock_js_weibo_report(time_period=period)
-            # 调试输出数据的列信息
-            st.write(f"{period} 数据列: {df.columns.tolist()}")
-            
-            # 检查 'name' 和 'rate' 列是否存在
-            if 'name' not in df.columns or 'rate' not in df.columns:
-                st.warning(f"{period} 数据缺少 'name' 或 'rate' 列，跳过此时间段")
+            # 检查 'rate' 列是否存在
+            if 'rate' not in df.columns:
+                st.warning(f"{period} 数据缺少 'rate' 列，跳过此时间段")
                 continue
+            
+            # 确保 'rate' 列的数据是数值型，如果不是，进行转换
+            df['rate'] = pd.to_numeric(df['rate'], errors='coerce')
             weibo_data[period] = df
         except KeyError as e:
             st.error(f"获取 {period} 数据时出错: {e}")
