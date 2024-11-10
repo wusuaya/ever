@@ -1,149 +1,62 @@
 import streamlit as st
 import akshare as ak
 import matplotlib.pyplot as plt
-from matplotlib import font_manager as fm
-from datetime import datetime, timedelta
+import matplotlib.font_manager as fm
 
-# 手动加载SimHei字体
-font_path = "./simhei.ttf"  # 确保字体文件路径正确
-my_font = fm.FontProperties(fname=font_path)
+# 设置中文字体
+font_path = "C:\\Windows\\Fonts\\simsun.ttc"  # 替换为实际的中文字体路径
+plt.rcParams['font.family'] = fm.FontProperties(fname=font_path).get_name()
 
-# 设置字体参数
-plt.rcParams['font.sans-serif'] = [my_font.get_name()]  # 使用加载的字体
-plt.rcParams['axes.unicode_minus'] = False  # 解决坐标轴负号显示问题
+# 获取不同时间段数据的函数
+def get_weibo_data(time_period):
+    return ak.stock_js_weibo_report(time_period=time_period)
 
-# 定义绘制概念板块排名的函数
-def show_board_ranking():
-    # 获取日期范围的选择
-    date_range = st.selectbox(
-        '请选择绘制图表的时间段（概念板块）',
-        ('5日', '10日', '20日', '30日', '60日')
+# Streamlit应用布局
+st.title("微博舆情报告股票数据分析")
+
+# 用户选择
+time_periods = ["CNHOUR12", "CNHOUR24", "CNDAY7", "CNDAY30"]
+selected_ranks = st.selectbox("选择要绘制的排名区间", ["1-10", "11-20", "21-30", "31-40", "41-50", "1-100每隔10取一个"])
+
+# 获取所有时间段的数据
+data_dict = {}
+for period in time_periods:
+    data_dict[period] = get_weibo_data(period)
+
+# 按选择区间筛选股票数据
+def filter_data_by_rank(df, rank_str):
+    if rank_str == "1-10":
+        return df.iloc[:10]
+    elif rank_str == "11-20":
+        return df.iloc[10:20]
+    elif rank_str == "21-30":
+        return df.iloc[20:30]
+    elif rank_str == "31-40":
+        return df.iloc[30:40]
+    elif rank_str == "41-50":
+        return df.iloc[40:50]
+    elif rank_str == "1-100每隔10取一个":
+        return df.iloc[::10].iloc[:10]  # 每隔10取一个，最多取10个
+    else:
+        return df
+
+# 绘制折线图
+fig, ax = plt.subplots(figsize=(12, 6))
+for i, (period, df) in enumerate(data_dict.items()):
+    filtered_df = filter_data_by_rank(df, selected_ranks)
+    ax.plot(
+        filtered_df['name'],
+        filtered_df['rate'],
+        marker='o',
+        label=f"{period}数据"
     )
 
-    # 根据选择的时间段设置对应的天数
-    days_dict = {
-        '5日': 5,
-        '10日': 10,
-        '20日': 20,
-        '30日': 30,
-        '60日': 60
-    }
-    selected_days = days_dict[date_range]
+ax.set_title("微博舆情股票数据对比")
+ax.set_xlabel("股票名称")
+ax.set_ylabel("人气排行指数")
+ax.legend()
+plt.xticks(rotation=45)
 
-    # 获取今天的日期和对应时间段的开始日期
-    end_date = datetime.now().strftime("%Y%m%d")
-    start_date = (datetime.now() - timedelta(days=selected_days)).strftime("%Y%m%d")
+# 展示图表
+st.pyplot(fig)
 
-    # 获取概念板块数据
-    stock_board_concept_name_em_df = ak.stock_board_concept_name_em()
-
-    # 去掉特定的板块名称
-    excluded_boards = ['昨日连板', '昨日涨停', '昨日连板_含一字', '昨日涨停_含一字', '百元股']
-    filtered_boards = stock_board_concept_name_em_df[
-        (~stock_board_concept_name_em_df['板块名称'].str.contains('|'.join(excluded_boards)))
-    ].head(10)
-
-    # 1. 绘制成交额和涨幅折线图
-    fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(10, 8))
-
-    for index, row in filtered_boards.iterrows():
-        board_name = row['板块名称']
-        # 获取板块的历史数据
-        stock_board_concept_hist_em_df = ak.stock_board_concept_hist_em(symbol=board_name, period="daily", 
-                                                                       start_date=start_date, end_date=end_date, adjust="")
-        
-        # 绘制成交额折线图
-        ax1.plot(stock_board_concept_hist_em_df['日期'], stock_board_concept_hist_em_df['成交额'], label=board_name)
-        
-        # 绘制涨幅折线图
-        initial_close = stock_board_concept_hist_em_df['收盘'].iloc[0]
-        scaled_close = stock_board_concept_hist_em_df['收盘'] / initial_close  # 按比例缩放
-        ax2.plot(stock_board_concept_hist_em_df['日期'], scaled_close, label=board_name)
-
-    # 设置图表标题和图例
-    ax1.set_title(f"前十概念板块成交额 - 最近{selected_days}天")
-    ax1.set_xlabel("日期")
-    ax1.set_ylabel("成交额")
-    ax1.legend(loc="upper left")
-
-    ax2.set_title(f"前十概念板块涨幅 - 最近{selected_days}天")
-    ax2.set_xlabel("日期")
-    ax2.set_ylabel("相对涨幅")
-    ax2.legend(loc="upper left")
-
-    # 在Streamlit中显示图表
-    st.pyplot(fig)
-
-# 定义绘制行业排名的函数
-def show_industry_ranking():
-    # 获取日期范围的选择
-    date_range = st.selectbox(
-        '请选择绘制图表的时间段（行业排名）',
-        ('5日', '10日', '20日', '30日', '60日')
-    )
-
-    # 根据选择的时间段设置对应的天数
-    days_dict = {
-        '5日': 5,
-        '10日': 10,
-        '20日': 20,
-        '30日': 30,
-        '60日': 60
-    }
-    selected_days = days_dict[date_range]
-
-    # 获取今天的日期和对应时间段的开始日期
-    end_date = datetime.now().strftime("%Y%m%d")
-    start_date = (datetime.now() - timedelta(days=selected_days)).strftime("%Y%m%d")
-
-    # 获取行业板块数据
-    stock_board_industry_name_em_df = ak.stock_board_industry_name_em()
-
-    # 去掉特定的板块名称
-    excluded_boards = ['昨日连板', '昨日涨停', '昨日连板_含一字', '昨日涨停_含一字', '百元股']
-    filtered_boards = stock_board_industry_name_em_df[
-        (~stock_board_industry_name_em_df['板块名称'].str.contains('|'.join(excluded_boards)))
-    ].head(10)
-
-    # 1. 绘制成交额和涨幅折线图
-    fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(10, 8))
-
-    for index, row in filtered_boards.iterrows():
-        board_name = row['板块名称']
-        # 获取行业板块的历史数据
-        stock_board_industry_hist_em_df = ak.stock_board_industry_hist_em(symbol=board_name, period="日k", 
-                                                                         start_date=start_date, end_date=end_date, adjust="")
-        
-        # 绘制成交额折线图
-        ax1.plot(stock_board_industry_hist_em_df['日期'], stock_board_industry_hist_em_df['成交额'], label=board_name)
-        
-        # 绘制涨幅折线图
-        initial_close = stock_board_industry_hist_em_df['收盘'].iloc[0]
-        scaled_close = stock_board_industry_hist_em_df['收盘'] / initial_close  # 按比例缩放
-        ax2.plot(stock_board_industry_hist_em_df['日期'], scaled_close, label=board_name)
-
-    # 设置图表标题和图例
-    ax1.set_title(f"前十行业板块成交额 - 最近{selected_days}天")
-    ax1.set_xlabel("日期")
-    ax1.set_ylabel("成交额")
-    ax1.legend(loc="upper left")
-
-    ax2.set_title(f"前十行业板块涨幅 - 最近{selected_days}天")
-    ax2.set_xlabel("日期")
-    ax2.set_ylabel("相对涨幅")
-    ax2.legend(loc="upper left")
-
-    # 在Streamlit中显示图表
-    st.pyplot(fig)
-
-# Streamlit 应用主界面
-st.title("板块和行业排名图表展示")
-
-# 创建选择框来选择显示的内容
-option = st.selectbox('请选择要展示的图表', ('概念板块排名', '行业排名'))
-
-# 根据选择显示相应的图表
-if option == '概念板块排名':
-    show_board_ranking()
-elif option == '行业排名':
-    show_industry_ranking()
