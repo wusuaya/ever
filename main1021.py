@@ -6,9 +6,9 @@ from datetime import datetime, timedelta
 import matplotlib.font_manager as fm
 import os
 
-# 设置字体文件名
-FONT_FILENAME = "NotoSansMonoCJKsc-Regular.otf"
-font_path = os.path.join(os.getcwd(), FONT_FILENAME)
+# 设置字体文件路径
+FONT_FILENAME = "NotoSansMonoCJKsc-Regular.otf"  # 请根据实际路径更改此文件名
+font_path = os.path.join(os.path.dirname(__file__), FONT_FILENAME)
 
 # 检查字体文件是否存在
 if not os.path.exists(font_path):
@@ -16,7 +16,7 @@ if not os.path.exists(font_path):
 else:
     try:
         font_prop = fm.FontProperties(fname=font_path, size=12)
-        plt.rcParams['font.family'] = font_prop.get_name()
+        plt.rc('font', family=font_prop.get_name())
         plt.rcParams['font.size'] = 12
         plt.rcParams['axes.unicode_minus'] = False
     except Exception as e:
@@ -76,10 +76,10 @@ def show_weibo_report():
         ]
         ax.plot(time_period_names, rates, label=stock)
     
-    ax.set_title("微博舆情股票人气变化趋势")
-    ax.set_xlabel("时间段")
-    ax.set_ylabel("人气指数")
-    ax.legend()
+    ax.set_title("微博舆情股票人气变化趋势", fontproperties=font_prop)
+    ax.set_xlabel("时间段", fontproperties=font_prop)
+    ax.set_ylabel("人气指数", fontproperties=font_prop)
+    ax.legend(prop=font_prop)
     st.pyplot(fig)
 
 # 调用微博舆情报告函数
