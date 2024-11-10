@@ -22,8 +22,12 @@ else:
     except Exception as e:
         st.error(f"加载字体时出错：{e}")
 
-# 原有main1021.py中的逻辑和功能
-# 获取概念和行业板块数据
+# 获取不同时间段数据的函数
+def get_weibo_data(time_period):
+    return ak.stock_js_weibo_report(time_period=time_period)
+
+# 原有main1021.py中的逻辑
+# 读取概念和行业板块数据
 excluded_boards = ['昨日连板', '昨日涨停', '昨日连板_含一字', '昨日涨停_含一字', '百元股']
 stock_board_concept_name_em_df = ak.stock_board_concept_name_em()
 stock_board_concept_name_em_df = stock_board_concept_name_em_df[
@@ -35,16 +39,7 @@ stock_board_industry_name_em_df = stock_board_industry_name_em_df[
     ~stock_board_industry_name_em_df['板块名称'].str.contains('|'.join(excluded_boards))
 ]
 
-# 显示概念和行业排名的函数保持不变
-def show_board_ranking():
-    # 原有的图表绘制逻辑
-    ...
-
-def show_industry_ranking():
-    # 原有的图表绘制逻辑
-    ...
-
-# 统计重复出现的个股并显示
+# 统计重复出现的个股
 def show_repeated_stocks():
     concept_boards = stock_board_concept_name_em_df.head(10)['板块名称'].tolist()
     industry_boards = stock_board_industry_name_em_df.head(10)['板块名称'].tolist()
@@ -76,7 +71,6 @@ def show_repeated_stocks():
 
 selected_stocks = show_repeated_stocks()
 
-# 新增微博舆情股票人气排名折线图的功能
 # 获取CNHOUR24数据
 cnhour24_data = get_weibo_data("CNHOUR24")
 
@@ -115,4 +109,5 @@ plt.xticks(rotation=45, fontproperties=font_prop)
 
 # 在Streamlit中展示图表
 st.pyplot(fig)
+
 
