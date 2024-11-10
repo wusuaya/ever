@@ -33,9 +33,8 @@ def show_weibo_report():
     for period in time_periods:
         try:
             df = ak.stock_js_weibo_report(time_period=period)
-            # 检查 'rate' 列是否存在
-            if 'rate' not in df.columns:
-                st.warning(f"数据中缺少 'rate' 列，无法处理 {period} 的数据")
+            if 'name' not in df.columns or 'rate' not in df.columns:
+                st.warning(f"{period} 数据缺少必要的列，跳过此时间段")
                 continue
             weibo_data[period] = df
         except Exception as e:
@@ -72,32 +71,9 @@ def show_weibo_report():
 # 调用微博舆情报告函数
 show_weibo_report()
 
-# 以下为你上传的原代码（保持不变）
+# 原有代码保持不变
 # --原代码开始--
-import streamlit as st
-import akshare as ak
-import matplotlib.pyplot as plt
-from datetime import datetime, timedelta
-import matplotlib.font_manager as fm
-import os
-import pandas as pd
-from collections import defaultdict
-
-# 设置字体文件名
-FONT_FILENAME = "NotoSansMonoCJKsc-Regular.otf"
-font_path = os.path.join(os.getcwd(), FONT_FILENAME)
-
-if not os.path.exists(font_path):
-    st.error(f"字体文件未找到：{font_path}")
-else:
-    try:
-        font_prop = fm.FontProperties(fname=font_path, size=12)
-        plt.rcParams['font.family'] = font_prop.get_name()
-        plt.rcParams['font.size'] = 12
-        plt.rcParams['axes.unicode_minus'] = False
-    except Exception as e:
-        st.error(f"加载字体时出错：{e}")
-
+# 获取概念板块和行业板块数据，在全局范围内定义并过滤掉不需要的板块
 excluded_boards = ['昨日连板', '昨日涨停', '昨日连板_含一字', '昨日涨停_含一字', '百元股']
 stock_board_concept_name_em_df = ak.stock_board_concept_name_em()
 stock_board_concept_name_em_df = stock_board_concept_name_em_df[
@@ -109,6 +85,7 @@ stock_board_industry_name_em_df = stock_board_industry_name_em_df[
     ~stock_board_industry_name_em_df['板块名称'].str.contains('|'.join(excluded_boards))
 ]
 
+# 定义绘制概念板块排名的函数
 def show_board_ranking():
     date_range = st.selectbox('请选择绘制图表的时间段（概念板块）', ('5日', '10日', '20日', '30日', '60日'))
     days_dict = {'5日': 5, '10日': 10, '20日': 20, '30日': 30, '60日': 60}
@@ -161,6 +138,7 @@ def show_board_ranking():
             st.write(f"{board_name} 成交额前十成分股")
             st.dataframe(top_10_by_volume[['名称', '代码', '成交额', '涨跌幅']])
 
+# 定义绘制行业排名的函数
 def show_industry_ranking():
     date_range = st.selectbox('请选择绘制图表的时间段（行业排名）', ('5日', '10日', '20日', '30日', '60日'))
     days_dict = {'5日': 5, '10日': 10, '20日': 20, '30日': 30, '60日': 60}
@@ -225,5 +203,3 @@ elif option == '行业排名':
     show_industry_ranking()
 
 # 调用 show_repeated_stocks() 函数的位置请保持不变
-
-
