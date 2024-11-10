@@ -5,7 +5,6 @@ import pandas as pd
 from datetime import datetime, timedelta
 import matplotlib.font_manager as fm
 import os
-from collections import defaultdict
 
 # 设置字体文件名
 FONT_FILENAME = "NotoSansMonoCJKsc-Regular.otf"
@@ -26,11 +25,12 @@ else:
 # 显示微博舆情数据
 def show_weibo_report():
     st.header("微博舆情报告 - 股票人气变化趋势")
-    time_periods = ["CNDAY30", "CNDAY7", "CNHOUR24", "CNHOUR12", "CNHOUR6", "CNHOUR2"]
-    time_period_names = ["一月", "一周", "一天", "12小时", "6小时", "2小时"]
+    time_periods = ["CNDAY30", "CNDAY7", "CNHOUR24", "CNHOUR12"]
+    excluded_periods = ["CNHOUR2", "CNHOUR6"]
+    time_period_names = ["一月", "一周", "一天", "12小时"]
     
     weibo_data = {}
-    for period in time_periods:
+    for period in time_periods + excluded_periods:
         try:
             df = ak.stock_js_weibo_report(time_period=period)
             # 检查 'rate' 列是否存在
@@ -48,6 +48,13 @@ def show_weibo_report():
             st.error(f"获取 {period} 数据时发生意外错误: {e}")
             continue
     
+    # 显示 CNHOUR2 和 CNHOUR6 的前十数据
+    for period in excluded_periods:
+        if period in weibo_data:
+            st.subheader(f"{period} 的前十数据")
+            st.dataframe(weibo_data[period].head(10))
+
+    # 使用剩余的时间段绘制图表
     if "CNHOUR24" not in weibo_data:
         st.error("无法获取 1 天的舆情数据，请检查数据源")
         return
@@ -74,6 +81,15 @@ def show_weibo_report():
     ax.set_ylabel("人气指数")
     ax.legend()
     st.pyplot(fig)
+
+# 调用微博舆情报告函数
+show_weibo_report()
+
+# 原有代码部分保持不变
+# --原代码开始--
+# <将你上传的原始代码粘贴在此处，不作任何修改>
+# --原代码结束--
+
 
 # 调用微博舆情报告函数
 show_weibo_report()
