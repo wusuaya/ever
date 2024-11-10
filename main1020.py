@@ -56,24 +56,30 @@ def filter_data_by_rank(df, rank_str):
 # 将股票数据从右至左排列并绘制不同时间段的折线图
 fig, ax = plt.subplots(figsize=(12, 6))
 for stock in filter_data_by_rank(data_dict['CNHOUR24'], selected_ranks)['name']:
-    rates = []
+    ranks = []
     for period in reversed(time_periods):  # 从右到左排列时间段
         df = data_dict[period]
-        rate = df.loc[df['name'] == stock, 'rate'].values
-        rates.append(rate[0] if len(rate) > 0 else None)
+        # 获取排名，排名越高值越大
+        if stock in df['name'].values:
+            rank = df.index[df['name'] == stock].tolist()[0]
+            rank_value = len(df) - rank  # 取倒数，排名第一的值最高
+            ranks.append(rank_value)
+        else:
+            ranks.append(None)
 
     ax.plot(
         time_periods[::-1],  # 反转时间段顺序
-        rates,
+        ranks,
         marker='o',
         label=stock
     )
 
 ax.set_title("微博舆情股票人气排名对比（不同时间段）", fontproperties=font_prop)
 ax.set_xlabel("时间段", fontproperties=font_prop)
-ax.set_ylabel("人气指数", fontproperties=font_prop)
+ax.set_ylabel("倒数人气排名", fontproperties=font_prop)
 ax.legend(prop=font_prop)
 plt.xticks(rotation=45, fontproperties=font_prop)
 
 # 在Streamlit中展示图表
 st.pyplot(fig)
+
