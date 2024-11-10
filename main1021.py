@@ -6,7 +6,7 @@ from datetime import datetime, timedelta
 import matplotlib.font_manager as fm
 import os
 
-# 设置字体文件路径
+# 设置字体文件名
 FONT_FILENAME = "NotoSansMonoCJKsc-Regular.otf"  # 请根据实际路径更改此文件名
 font_path = os.path.join(os.path.dirname(__file__), FONT_FILENAME)
 
@@ -35,35 +35,35 @@ def show_weibo_report():
             df = ak.stock_js_weibo_report(time_period=period)
             # 检查 'rate' 列是否存在
             if 'rate' not in df.columns:
-                st.warning(f"{period} 数据缺少 'rate' 列，跳过此时间段")
+                st.warning(f"{period} 数据缺少 'rate' 列，跳过此时间段", key=f"warning_{period}")
                 continue
             
             # 确保 'rate' 列的数据是数值型，如果不是，进行转换
             df['rate'] = pd.to_numeric(df['rate'], errors='coerce')
             weibo_data[period] = df
         except KeyError as e:
-            st.error(f"获取 {period} 数据时出错: {e}")
+            st.error(f"获取 {period} 数据时出错: {e}", key=f"error_{period}")
             continue
         except Exception as e:
-            st.error(f"获取 {period} 数据时发生意外错误: {e}")
+            st.error(f"获取 {period} 数据时发生意外错误: {e}", key=f"exception_{period}")
             continue
     
     # 显示 CNHOUR2 和 CNHOUR6 的前十数据
     for period in excluded_periods:
         if period in weibo_data:
-            st.subheader(f"{period} 的前十数据")
-            st.dataframe(weibo_data[period].head(10))
+            st.subheader(f"{period} 的前十数据", key=f"subheader_{period}")
+            st.dataframe(weibo_data[period].head(10), key=f"dataframe_{period}")
 
     # 使用剩余的时间段绘制图表
     if "CNHOUR24" not in weibo_data:
-        st.error("无法获取 1 天的舆情数据，请检查数据源")
+        st.error("无法获取 1 天的舆情数据，请检查数据源", key="error_CNHOUR24")
         return
     
     main_df = weibo_data["CNHOUR24"]
     main_df = main_df.sort_values(by="rate", ascending=False).reset_index(drop=True)
     
     top_ranges = [f"{i}-{i+9}" for i in range(1, 101, 10)]
-    selected_range = st.selectbox("请选择要显示的排名范围", top_ranges)
+    selected_range = st.selectbox("请选择要显示的排名范围", top_ranges, key="selectbox_range")
     start, end = map(int, selected_range.split('-'))
     
     selected_stocks = main_df.loc[start-1:end-1, 'name'].tolist()
@@ -80,7 +80,7 @@ def show_weibo_report():
     ax.set_xlabel("时间段", fontproperties=font_prop)
     ax.set_ylabel("人气指数", fontproperties=font_prop)
     ax.legend(prop=font_prop)
-    st.pyplot(fig)
+    st.pyplot(fig, key="fig_plot")
 
 # 调用微博舆情报告函数
 show_weibo_report()
