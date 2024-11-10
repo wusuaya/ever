@@ -4,7 +4,7 @@ import matplotlib.pyplot as plt
 import matplotlib.font_manager as fm
 import os
 
-# 设置字体文件名并构建路径
+# 设置字体文件路径
 FONT_FILENAME = "NotoSansMonoCJKsc-Regular.otf"
 font_path = os.path.join(os.getcwd(), FONT_FILENAME)
 
@@ -15,8 +15,8 @@ else:
     try:
         font_prop = fm.FontProperties(fname=font_path, size=12)
         plt.rcParams['font.family'] = font_prop.get_name()
-        plt.rcParams['font.size'] = 12  # 设置字体大小
-        plt.rcParams['axes.unicode_minus'] = False  # 解决坐标轴负号显示问题
+        plt.rcParams['font.size'] = 12
+        plt.rcParams['axes.unicode_minus'] = False
     except Exception as e:
         st.error(f"加载字体时出错：{e}")
 
@@ -49,23 +49,28 @@ def filter_data_by_rank(df, rank_str):
     elif rank_str == "41-50":
         return df.iloc[40:50]
     elif rank_str == "1-100每隔10取一个":
-        return df.iloc[::10].iloc[:10]  # 每隔10取一个，最多取10个
+        return df.iloc[::10].iloc[:10]
     else:
         return df
 
-# 绘制折线图
+# 将股票数据从右至左排列并绘制不同时间段的折线图
 fig, ax = plt.subplots(figsize=(12, 6))
-for i, (period, df) in enumerate(data_dict.items()):
-    filtered_df = filter_data_by_rank(df, selected_ranks)
+for stock in filter_data_by_rank(data_dict['CNHOUR24'], selected_ranks)['name']:
+    rates = []
+    for period in reversed(time_periods):  # 从右到左排列时间段
+        df = data_dict[period]
+        rate = df.loc[df['name'] == stock, 'rate'].values
+        rates.append(rate[0] if len(rate) > 0 else None)
+
     ax.plot(
-        filtered_df['name'],
-        filtered_df['rate'],
+        time_periods[::-1],  # 反转时间段顺序
+        rates,
         marker='o',
-        label=f"{period} 数据"
+        label=stock
     )
 
-ax.set_title("微博舆情股票人气排名对比", fontproperties=font_prop)
-ax.set_xlabel("股票名称", fontproperties=font_prop)
+ax.set_title("微博舆情股票人气排名对比（不同时间段）", fontproperties=font_prop)
+ax.set_xlabel("时间段", fontproperties=font_prop)
 ax.set_ylabel("人气指数", fontproperties=font_prop)
 ax.legend(prop=font_prop)
 plt.xticks(rotation=45, fontproperties=font_prop)
