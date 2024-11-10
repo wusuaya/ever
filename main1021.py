@@ -1,10 +1,10 @@
 import streamlit as st
 import akshare as ak
 import matplotlib.pyplot as plt
+import pandas as pd
 from datetime import datetime, timedelta
 import matplotlib.font_manager as fm
 import os
-import pandas as pd
 from collections import defaultdict
 
 # 设置字体文件名
@@ -33,12 +33,19 @@ def show_weibo_report():
     for period in time_periods:
         try:
             df = ak.stock_js_weibo_report(time_period=period)
+            # 调试输出数据的列信息
+            st.write(f"{period} 数据列: {df.columns.tolist()}")
+            
+            # 检查 'name' 和 'rate' 列是否存在
             if 'name' not in df.columns or 'rate' not in df.columns:
-                st.warning(f"{period} 数据缺少必要的列，跳过此时间段")
+                st.warning(f"{period} 数据缺少 'name' 或 'rate' 列，跳过此时间段")
                 continue
             weibo_data[period] = df
-        except Exception as e:
+        except KeyError as e:
             st.error(f"获取 {period} 数据时出错: {e}")
+            continue
+        except Exception as e:
+            st.error(f"获取 {period} 数据时发生意外错误: {e}")
             continue
     
     if "CNHOUR24" not in weibo_data:
@@ -71,7 +78,7 @@ def show_weibo_report():
 # 调用微博舆情报告函数
 show_weibo_report()
 
-# 原有代码保持不变
+# 原有代码部分保持不变
 # --原代码开始--
 # 获取概念板块和行业板块数据，在全局范围内定义并过滤掉不需要的板块
 excluded_boards = ['昨日连板', '昨日涨停', '昨日连板_含一字', '昨日涨停_含一字', '百元股']
