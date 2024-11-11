@@ -82,10 +82,14 @@ def show_board_ranking():
             st.write(f"{board_name} 成交额前十成分股")
             st.dataframe(top_10_by_volume[['名称', '代码', '成交额', '涨跌幅']])
 
-            # 新增：获取并计算加权热度数据，绘制MACD图表
+            # 新增：MACD 参数滑块
+            short_period = st.slider("MACD短期周期", 5, 20, 12)
+            long_period = st.slider("MACD长期周期", 20, 50, 26)
+            signal_period = st.slider("MACD信号线周期", 5, 20, 9)
+
             try:
                 for name, top_10 in zip(['涨幅前十', '成交额前十'], [top_10_by_change, top_10_by_volume]):
-                    total_weight = top_10['成交额'].sum()  # 可换为 '涨跌幅' 视具体需求
+                    total_weight = top_10['成交额'].sum()
                     weighted_data = pd.DataFrame()
                     for _, stock_row in top_10.iterrows():
                         full_code = 'SH' + stock_row['代码'] if stock_row['代码'].startswith('6') else 'SZ' + stock_row['代码']
@@ -97,11 +101,10 @@ def show_board_ranking():
                         else:
                             weighted_data['新晋粉丝加权'] += hot_data.set_index('时间')['新晋粉丝加权']
 
-                    short_period, long_period = 12, 26
                     weighted_data['Short_EMA'] = weighted_data['新晋粉丝加权'].ewm(span=short_period, adjust=False).mean()
                     weighted_data['Long_EMA'] = weighted_data['新晋粉丝加权'].ewm(span=long_period, adjust=False).mean()
                     weighted_data['MACD'] = weighted_data['Short_EMA'] - weighted_data['Long_EMA']
-                    weighted_data['Signal'] = weighted_data['MACD'].ewm(span=9, adjust=False).mean()
+                    weighted_data['Signal'] = weighted_data['MACD'].ewm(span=signal_period, adjust=False).mean()
 
                     fig = go.Figure()
                     fig.add_trace(go.Scatter(x=weighted_data.index, y=weighted_data['MACD'], mode='lines', name=f'{name} MACD'))
@@ -112,10 +115,40 @@ def show_board_ranking():
             except Exception as e:
                 st.write(f"获取或处理数据时出错: {e}")
 
-# 定义绘制行业排名的函数（同理增加加权MACD功能）
-def show_industry_ranking():
-    # 类似 show_board_ranking 函数添加行业板块逻辑和MACD绘制
-    pass  # 省略的部分为上面的相同逻辑
+# 修复后的重复个股统计函数
+def show_repeated_stocks():
+    concept_boards = stock_board_concept_name_em_df.head(10)['板块名称'].tolist()
+    industry_boards = stock_board_industry_name_em_df.head(10)['板块名称'].tolist()
+    stock_count = defaultdict(lambda: {'count': 0, 'boards': []})
+
+    for board_name in concept_boards:
+        stock_board_concept_cons_em_df = ak.stock_board_concept_cons_em(symbol=board_name)
+        top_10_by_volume = stock_board_concept_cons_em_df.sort_values(by='成交额', ascending=False).head(10)
+        top_10_by_change = stock_board_concept_cons_em_df.sort_values(by='涨跌幅', ascending=False).head(10)
+        for _, row in pd.concat([top_10_by_volume, top_10_by_change]).drop_duplicates().iterrows():
+            stock_name = row['名称']
+            stock_count[stock_name]['count'] += 1
+            stock_count[stock_name]['boards'].append(f"{board_name}（概念板块）")
+
+    for board_name in industry_boards:
+        stock_board_industry_cons_em_df = ak.stock_board_industry_cons_em(symbol=board_name)
+        top_10_by_volume = stock_board_industry_cons_em_df.sort_values(by='成交额', ascending=False).head(10)
+        top_10_by_change = stock_board_industry_cons_em_df.sort_values(by='涨跌幅', ascending=False).head(10)
+        for _, row in pd.concat([top_10_by_volume, top_10_by_change]).drop_duplicates().iterrows():
+            stock_name = row['名称']
+            stock_count[stock_name]['count'] += 1
+            stock_count[stock_name]['boards'].append(f"{board_name}（行业板块）")
+
+    repeated_stocks = pd.DataFrame([
+        {'个股名称': stock, '重复次数': info['count'], '所属板块': ', '.join(set(info['boards']))}
+        for stock, info in stock_count.items() if info['count'] > 1
+    ])
+    repeated_stocks = repeated_stocks.sort_values(by='重复次数', ascending=False)
+    st.subheader("重复出现的个股（按重复次数排序）")
+    if not repeated_stocks.empty:
+        st.dataframe(repeated_stocks)
+    else:
+        st.write("没有重复出现的个股。")
 
 # Streamlit 应用主界面
 st.title("板块和行业排名图表展示")
@@ -128,4 +161,5 @@ elif option == '行业排名':
 
 # 显示重复个股的统计信息
 show_repeated_stocks()
+
 
