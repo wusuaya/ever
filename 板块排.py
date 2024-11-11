@@ -128,14 +128,17 @@ def show_industry_ranking():
     fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(10, 8))
     for index, row in filtered_boards.iterrows():
         board_name = row['板块名称']
-        stock_board_industry_hist_em_df = ak.stock_board_industry_hist_em(
-            symbol=board_name, period="daily",
-            start_date=start_date, end_date=end_date, adjust=""
-        )
-        ax1.plot(stock_board_industry_hist_em_df['日期'], stock_board_industry_hist_em_df['成交额'], label=board_name)
-        initial_close = stock_board_industry_hist_em_df['收盘'].iloc[0]
-        scaled_close = stock_board_industry_hist_em_df['收盘'] / initial_close
-        ax2.plot(stock_board_industry_hist_em_df['日期'], scaled_close, label=board_name)
+        try:
+            stock_board_industry_hist_em_df = ak.stock_board_industry_hist_em(
+                symbol=board_name, period="day",  # 改为正确的参数
+                start_date=start_date, end_date=end_date, adjust=""
+            )
+            ax1.plot(stock_board_industry_hist_em_df['日期'], stock_board_industry_hist_em_df['成交额'], label=board_name)
+            initial_close = stock_board_industry_hist_em_df['收盘'].iloc[0]
+            scaled_close = stock_board_industry_hist_em_df['收盘'] / initial_close
+            ax2.plot(stock_board_industry_hist_em_df['日期'], scaled_close, label=board_name)
+        except KeyError as e:
+            st.write(f"无法获取 {board_name} 的数据：{e}")
 
     ax1.set_title(f"前十行业板块成交额 - 最近{selected_days}天", fontproperties=font_prop)
     ax1.set_xlabel("日期", fontproperties=font_prop)
