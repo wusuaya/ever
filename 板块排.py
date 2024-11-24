@@ -4,13 +4,21 @@ import os
 from collections import defaultdict
 import akshare as ak
 
-# 保留板块排.py的所有原始功能（假设已经包含所有绘图和交互功能）
+# 新增：处理合并单元格数据的方法
+def expand_merged_cells(dataframe, key_column):
+    """
+    展开合并单元格，将合并单元格的值复制到所有相关行
+    """
+    dataframe = dataframe.copy()
+    dataframe[key_column] = dataframe[key_column].fillna(method="ffill")
+    return dataframe
 
 # 新增：NTTS关联按钮功能
 def ntts_association(concept_df, industry_df, ntts_file_path):
     try:
-        # 读取 NTTS 文件
+        # 读取 NTTS 文件并展开合并单元格
         ntts_data = pd.read_excel(ntts_file_path, sheet_name=0)
+        ntts_data = expand_merged_cells(ntts_data, "code")  # 展开合并单元格
         ntts_data['code_clean'] = ntts_data['code'].astype(str).str.extract(r'(\d{6})')[0]  # 提取后六位数字
 
         # 获取所有概念板块和行业板块的成交量前十和涨幅前十的股票代码
@@ -45,16 +53,8 @@ def ntts_association(concept_df, industry_df, ntts_file_path):
                 lambda x: ', '.join(all_codes.get(x, []))
             )
 
-            # 展开合并单元格的所有行
-            expanded_data = []
-            for _, group in matched_data.groupby('code_clean'):
-                for _, row in group.iterrows():
-                    expanded_data.append(row)
-
-            expanded_df = pd.DataFrame(expanded_data)
-
-            # 展示最终结果
-            st.dataframe(expanded_df)
+            # 展示结果
+            st.dataframe(matched_data)
         else:
             st.write("没有匹配的股票信息。")
     except Exception as e:
@@ -63,23 +63,22 @@ def ntts_association(concept_df, industry_df, ntts_file_path):
 # Streamlit 主界面
 def main():
     st.title("板块和行业排名图表展示")
-    # 保留原有的概念板块和行业板块加载逻辑
+    # 加载概念板块和行业板块数据
     concept_df = ak.stock_board_concept_name_em()
     industry_df = ak.stock_board_industry_name_em()
 
-    # 显示行业和概念板块排名（板块排.py 的原始功能）
+    # 显示功能选项
     option = st.selectbox("选择功能", ["行业板块排名", "概念板块排名", "NTTS关联"])
     if option == "行业板块排名":
-        # 原始行业板块逻辑
-        pass  # 替换为板块排.py中行业板块的函数调用
+        # 行业板块排名逻辑
+        pass  # 替换为原始行业板块逻辑
     elif option == "概念板块排名":
-        # 原始概念板块逻辑
-        pass  # 替换为板块排.py中概念板块的函数调用
+        # 概念板块排名逻辑
+        pass  # 替换为原始概念板块逻辑
     elif option == "NTTS关联":
-        # 新增NTTS关联逻辑
+        # 新增NTTS关联功能
         ntts_file_path = "./NTTS筛选统计.xlsx"  # 默认根目录路径
         ntts_association(concept_df, industry_df, ntts_file_path)
 
 if __name__ == "__main__":
     main()
-
