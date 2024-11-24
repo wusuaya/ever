@@ -1,84 +1,247 @@
 import streamlit as st
-import pandas as pd
-import os
-from collections import defaultdict
 import akshare as ak
+import matplotlib.pyplot as plt
+from datetime import datetime, timedelta
+import matplotlib.font_manager as fm
+import os
+import pandas as pd
+import plotly.graph_objects as go
+from collections import defaultdict
 
-# 新增：处理合并单元格数据的方法
-def expand_merged_cells(dataframe, key_column):
-    """
-    展开合并单元格，将合并单元格的值复制到所有相关行
-    """
-    dataframe = dataframe.copy()
-    dataframe[key_column] = dataframe[key_column].fillna(method="ffill")
-    return dataframe
+# 设置字体文件名
+FONT_FILENAME = "NotoSansMonoCJKsc-Regular.otf"
+font_path = os.path.join(os.getcwd(), FONT_FILENAME)
 
-# 新增：NTTS关联按钮功能
-def ntts_association(concept_df, industry_df, ntts_file_path):
+# 检查字体文件是否存在
+if not os.path.exists(font_path):
+    st.error(f"字体文件未找到：{font_path}")
+else:
     try:
-        # 读取 NTTS 文件并展开合并单元格
-        ntts_data = pd.read_excel(ntts_file_path, sheet_name=0)
-        ntts_data = expand_merged_cells(ntts_data, "code")  # 展开合并单元格
-        ntts_data['code_clean'] = ntts_data['code'].astype(str).str.extract(r'(\d{6})')[0]  # 提取后六位数字
-
-        # 获取所有概念板块和行业板块的成交量前十和涨幅前十的股票代码
-        all_codes = defaultdict(list)  # 存储股票代码与对应的板块信息
-
-        # 处理概念板块和行业板块数据
-        for board_df, board_type in zip([concept_df, industry_df], ["概念板块", "行业板块"]):
-            for _, row in board_df.head(10).iterrows():
-                board_name = row['板块名称']
-                if board_type == "概念板块":
-                    cons_em_df = ak.stock_board_concept_cons_em(symbol=board_name)
-                else:
-                    cons_em_df = ak.stock_board_industry_cons_em(symbol=board_name)
-                # 获取成交量前十和涨幅前十
-                top_10_volume = cons_em_df.sort_values(by='成交额', ascending=False).head(10)
-                top_10_change = cons_em_df.sort_values(by='涨跌幅', ascending=False).head(10)
-                # 添加到 all_codes 中
-                for _, stock_row in pd.concat([top_10_volume, top_10_change]).drop_duplicates().iterrows():
-                    stock_code = stock_row['代码']
-                    stock_name = stock_row['名称']
-                    all_codes[stock_code].append(f"{board_name}（{board_type}）")
-
-        # 匹配 NTTS 数据中的代码
-        matched_data = ntts_data[ntts_data['code_clean'].isin(all_codes.keys())]
-
-        # 展示匹配结果
-        if not matched_data.empty:
-            st.subheader("NTTS 筛选统计关联的股票信息")
-
-            # 为匹配的股票添加所属板块信息
-            matched_data['所属板块'] = matched_data['code_clean'].apply(
-                lambda x: ', '.join(all_codes.get(x, []))
-            )
-
-            # 展示结果
-            st.dataframe(matched_data)
-        else:
-            st.write("没有匹配的股票信息。")
+        font_prop = fm.FontProperties(fname=font_path, size=12)
+        plt.rcParams['font.family'] = font_prop.get_name()
+        plt.rcParams['font.size'] = 12
+        plt.rcParams['axes.unicode_minus'] = False
     except Exception as e:
-        st.error(f"关联失败：{e}")
+        st.error(f"加载字体时出错：{e}")
 
-# Streamlit 主界面
-def main():
-    st.title("板块和行业排名图表展示")
-    # 加载概念板块和行业板块数据
-    concept_df = ak.stock_board_concept_name_em()
-    industry_df = ak.stock_board_industry_name_em()
+# 获取概念板块和行业板块数据
+excluded_boards = ['昨日连板', '昨日涨停', '昨日连板_含一字', '昨日涨停_含一字', '百元股']
+stock_board_concept_name_em_df = ak.stock_board_concept_name_em()
+stock_board_concept_name_em_df = stock_board_concept_name_em_df[
+    ~stock_board_concept_name_em_df['板块名称'].str.contains('|'.join(excluded_boards))
+]
 
-    # 显示功能选项
-    option = st.selectbox("选择功能", ["行业板块排名", "概念板块排名", "NTTS关联"])
-    if option == "行业板块排名":
-        # 行业板块排名逻辑
-        pass  # 替换为原始行业板块逻辑
-    elif option == "概念板块排名":
-        # 概念板块排名逻辑
-        pass  # 替换为原始概念板块逻辑
-    elif option == "NTTS关联":
-        # 新增NTTS关联功能
-        ntts_file_path = "./NTTS筛选统计.xlsx"  # 默认根目录路径
-        ntts_association(concept_df, industry_df, ntts_file_path)
+stock_board_industry_name_em_df = ak.stock_board_industry_name_em()
+stock_board_industry_name_em_df = stock_board_industry_name_em_df[
+    ~stock_board_industry_name_em_df['板块名称'].str.contains('|'.join(excluded_boards))
+]
 
-if __name__ == "__main__":
-    main()
+# 定义绘制概念板块排名的函数
+def show_board_ranking():
+    date_range = st.selectbox('请选择绘制图表的时间段（概念板块）', ('5日', '10日', '20日', '30日', '60日'))
+    days_dict = {'5日': 5, '10日': 10, '20日': 20, '30日': 30, '60日': 60}
+    selected_days = days_dict[date_range]
+    end_date = datetime.now().strftime("%Y%m%d")
+    start_date = (datetime.now() - timedelta(days=selected_days)).strftime("%Y%m%d")
+
+    filtered_boards = stock_board_concept_name_em_df.head(10)
+
+    fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(10, 8))
+    for index, row in filtered_boards.iterrows():
+        board_name = row['板块名称']
+        stock_board_concept_hist_em_df = ak.stock_board_concept_hist_em(
+            symbol=board_name, period="daily",
+            start_date=start_date, end_date=end_date, adjust=""
+        )
+        ax1.plot(stock_board_concept_hist_em_df['日期'], stock_board_concept_hist_em_df['成交额'], label=board_name)
+        initial_close = stock_board_concept_hist_em_df['收盘'].iloc[0]
+        scaled_close = stock_board_concept_hist_em_df['收盘'] / initial_close
+        ax2.plot(stock_board_concept_hist_em_df['日期'], scaled_close, label=board_name)
+
+    ax1.set_title(f"前十概念板块成交额 - 最近{selected_days}天", fontproperties=font_prop)
+    ax1.set_xlabel("日期", fontproperties=font_prop)
+    ax1.set_ylabel("成交额", fontproperties=font_prop)
+    ax1.legend(loc="upper left", prop=font_prop)
+
+    ax2.set_title(f"前十概念板块涨幅 - 最近{selected_days}天", fontproperties=font_prop)
+    ax2.set_xlabel("日期", fontproperties=font_prop)
+    ax2.set_ylabel("相对涨幅", fontproperties=font_prop)
+    ax2.legend(loc="upper left", prop=font_prop)
+
+    st.pyplot(fig)
+
+    st.subheader("点击板块名称查看成份股信息")
+    for index, row in filtered_boards.iterrows():
+        board_name = row['板块名称']
+        if st.button(board_name):
+            stock_board_concept_cons_em_df = ak.stock_board_concept_cons_em(symbol=board_name)
+            top_10_by_change = stock_board_concept_cons_em_df.sort_values(by='涨跌幅', ascending=False).head(10)
+            st.write(f"{board_name} 涨幅前十成分股")
+            st.dataframe(top_10_by_change[['名称', '代码', '涨跌幅', '成交额']])
+            top_10_by_volume = stock_board_concept_cons_em_df.sort_values(by='成交额', ascending=False).head(10)
+            st.write(f"{board_name} 成交额前十成分股")
+            st.dataframe(top_10_by_volume[['名称', '代码', '成交额', '涨跌幅']])
+
+            # 新增：MACD 参数滑块
+            short_period = st.slider("MACD短期周期", 5, 20, 12, key=f"{board_name}_short")
+            long_period = st.slider("MACD长期周期", 20, 50, 26, key=f"{board_name}_long")
+            signal_period = st.slider("MACD信号线周期", 5, 20, 9, key=f"{board_name}_signal")
+
+            try:
+                for name, top_10 in zip(['涨幅前十', '成交额前十'], [top_10_by_change, top_10_by_volume]):
+                    total_weight = top_10['成交额'].sum()
+                    weighted_data = pd.DataFrame()
+                    for _, stock_row in top_10.iterrows():
+                        full_code = 'SH' + stock_row['代码'] if stock_row['代码'].startswith('6') else 'SZ' + stock_row['代码']
+                        hot_data = ak.stock_hot_rank_detail_em(symbol=full_code)
+                        hot_data['新晋粉丝加权'] = hot_data['新晋粉丝'] * (stock_row['成交额'] / total_weight)
+                        if weighted_data.empty:
+                            weighted_data = hot_data[['时间', '新晋粉丝加权']].copy()
+                            weighted_data.set_index('时间', inplace=True)
+                        else:
+                            weighted_data['新晋粉丝加权'] += hot_data.set_index('时间')['新晋粉丝加权']
+
+                    weighted_data['Short_EMA'] = weighted_data['新晋粉丝加权'].ewm(span=short_period, adjust=False).mean()
+                    weighted_data['Long_EMA'] = weighted_data['新晋粉丝加权'].ewm(span=long_period, adjust=False).mean()
+                    weighted_data['MACD'] = weighted_data['Short_EMA'] - weighted_data['Long_EMA']
+                    weighted_data['Signal'] = weighted_data['MACD'].ewm(span=signal_period, adjust=False).mean()
+
+                    fig = go.Figure()
+                    fig.add_trace(go.Scatter(x=weighted_data.index, y=weighted_data['MACD'], mode='lines', name=f'{name} MACD'))
+                    fig.add_trace(go.Scatter(x=weighted_data.index, y=weighted_data['Signal'], mode='lines', name='信号线'))
+                    fig.update_layout(title=f"{board_name} - {name} 加权新晋粉丝MACD", xaxis_title="时间", yaxis_title="MACD值")
+                    st.plotly_chart(fig)
+
+            except Exception as e:
+                st.write(f"获取或处理数据时出错: {e}")
+
+# 定义绘制行业板块排名的函数
+def show_industry_ranking():
+    date_range = st.selectbox('请选择绘制图表的时间段（行业板块）', ('5日', '10日', '20日', '30日', '60日'))
+    days_dict = {'5日': 5, '10日': 10, '20日': 20, '30日': 30, '60日': 60}
+    selected_days = days_dict[date_range]
+    end_date = datetime.now().strftime("%Y%m%d")
+    start_date = (datetime.now() - timedelta(days=selected_days)).strftime("%Y%m%d")
+
+    filtered_boards = stock_board_industry_name_em_df.head(10)
+
+    fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(10, 8))
+    for index, row in filtered_boards.iterrows():
+        board_name = row['板块名称']
+        try:
+            stock_board_industry_hist_em_df = ak.stock_board_industry_hist_em(
+                symbol=board_name, period="日k",  # 使用正确的参数设置
+                start_date=start_date, end_date=end_date, adjust=""
+            )
+            ax1.plot(stock_board_industry_hist_em_df['日期'], stock_board_industry_hist_em_df['成交额'], label=board_name)
+            initial_close = stock_board_industry_hist_em_df['收盘'].iloc[0]
+            scaled_close = stock_board_industry_hist_em_df['收盘'] / initial_close
+            ax2.plot(stock_board_industry_hist_em_df['日期'], scaled_close, label=board_name)
+        except KeyError as e:
+            st.write(f"无法获取 {board_name} 的数据：{e}")
+
+    ax1.set_title(f"前十行业板块成交额 - 最近{selected_days}天", fontproperties=font_prop)
+    ax1.set_xlabel("日期", fontproperties=font_prop)
+    ax1.set_ylabel("成交额", fontproperties=font_prop)
+    ax1.legend(loc="upper left", prop=font_prop)
+
+    ax2.set_title(f"前十行业板块涨幅 - 最近{selected_days}天", fontproperties=font_prop)
+    ax2.set_xlabel("日期", fontproperties=font_prop)
+    ax2.set_ylabel("相对涨幅", fontproperties=font_prop)
+    ax2.legend(loc="upper left", prop=font_prop)
+
+    st.pyplot(fig)
+
+    st.subheader("点击行业板块名称查看成份股信息")
+    for index, row in filtered_boards.iterrows():
+        board_name = row['板块名称']
+        if st.button(board_name):
+            stock_board_industry_cons_em_df = ak.stock_board_industry_cons_em(symbol=board_name)
+            top_10_by_change = stock_board_industry_cons_em_df.sort_values(by='涨跌幅', ascending=False).head(10)
+            st.write(f"{board_name} 涨幅前十成分股")
+            st.dataframe(top_10_by_change[['名称', '代码', '涨跌幅', '成交额']])
+            top_10_by_volume = stock_board_industry_cons_em_df.sort_values(by='成交额', ascending=False).head(10)
+            st.write(f"{board_name} 成交额前十成分股")
+            st.dataframe(top_10_by_volume[['名称', '代码', '成交额', '涨跌幅']])
+
+            # 新增：MACD 参数滑块
+            short_period = st.slider("MACD短期周期", 5, 20, 12, key=f"{board_name}_short")
+            long_period = st.slider("MACD长期周期", 20, 50, 26, key=f"{board_name}_long")
+            signal_period = st.slider("MACD信号线周期", 5, 20, 9, key=f"{board_name}_signal")
+
+            try:
+                for name, top_10 in zip(['涨幅前十', '成交额前十'], [top_10_by_change, top_10_by_volume]):
+                    total_weight = top_10['成交额'].sum()
+                    weighted_data = pd.DataFrame()
+                    for _, stock_row in top_10.iterrows():
+                        full_code = 'SH' + stock_row['代码'] if stock_row['代码'].startswith('6') else 'SZ' + stock_row['代码']
+                        hot_data = ak.stock_hot_rank_detail_em(symbol=full_code)
+                        hot_data['新晋粉丝加权'] = hot_data['新晋粉丝'] * (stock_row['成交额'] / total_weight)
+                        if weighted_data.empty:
+                            weighted_data = hot_data[['时间', '新晋粉丝加权']].copy()
+                            weighted_data.set_index('时间', inplace=True)
+                        else:
+                            weighted_data['新晋粉丝加权'] += hot_data.set_index('时间')['新晋粉丝加权']
+
+                    weighted_data['Short_EMA'] = weighted_data['新晋粉丝加权'].ewm(span=short_period, adjust=False).mean()
+                    weighted_data['Long_EMA'] = weighted_data['新晋粉丝加权'].ewm(span=long_period, adjust=False).mean()
+                    weighted_data['MACD'] = weighted_data['Short_EMA'] - weighted_data['Long_EMA']
+                    weighted_data['Signal'] = weighted_data['MACD'].ewm(span=signal_period, adjust=False).mean()
+
+                    fig = go.Figure()
+                    fig.add_trace(go.Scatter(x=weighted_data.index, y=weighted_data['MACD'], mode='lines', name=f'{name} MACD'))
+                    fig.add_trace(go.Scatter(x=weighted_data.index, y=weighted_data['Signal'], mode='lines', name='信号线'))
+                    fig.update_layout(title=f"{board_name} - {name} 加权新晋粉丝MACD", xaxis_title="时间", yaxis_title="MACD值")
+                    st.plotly_chart(fig)
+
+            except Exception as e:
+                st.write(f"获取或处理数据时出错: {e}")
+
+# 修复后的重复个股统计函数
+def show_repeated_stocks():
+    concept_boards = stock_board_concept_name_em_df.head(10)['板块名称'].tolist()
+    industry_boards = stock_board_industry_name_em_df.head(10)['板块名称'].tolist()
+    stock_count = defaultdict(lambda: {'count': 0, 'boards': []})
+
+    for board_name in concept_boards:
+        stock_board_concept_cons_em_df = ak.stock_board_concept_cons_em(symbol=board_name)
+        top_10_by_volume = stock_board_concept_cons_em_df.sort_values(by='成交额', ascending=False).head(10)
+        top_10_by_change = stock_board_concept_cons_em_df.sort_values(by='涨跌幅', ascending=False).head(10)
+        for _, row in pd.concat([top_10_by_volume, top_10_by_change]).drop_duplicates().iterrows():
+            stock_name = row['名称']
+            stock_count[stock_name]['count'] += 1
+            stock_count[stock_name]['boards'].append(f"{board_name}（概念板块）")
+
+    for board_name in industry_boards:
+        stock_board_industry_cons_em_df = ak.stock_board_industry_cons_em(symbol=board_name)
+        top_10_by_volume = stock_board_industry_cons_em_df.sort_values(by='成交额', ascending=False).head(10)
+        top_10_by_change = stock_board_industry_cons_em_df.sort_values(by='涨跌幅', ascending=False).head(10)
+        for _, row in pd.concat([top_10_by_volume, top_10_by_change]).drop_duplicates().iterrows():
+            stock_name = row['名称']
+            stock_count[stock_name]['count'] += 1
+            stock_count[stock_name]['boards'].append(f"{board_name}（行业板块）")
+
+    repeated_stocks = pd.DataFrame([
+        {'个股名称': stock, '重复次数': info['count'], '所属板块': ', '.join(set(info['boards']))}
+        for stock, info in stock_count.items() if info['count'] > 1
+    ])
+    repeated_stocks = repeated_stocks.sort_values(by='重复次数', ascending=False)
+    st.subheader("重复出现的个股（按重复次数排序）")
+    if not repeated_stocks.empty:
+        st.dataframe(repeated_stocks)
+    else:
+        st.write("没有重复出现的个股。")
+
+# Streamlit 应用主界面
+st.title("板块和行业排名图表展示")
+option = st.selectbox('请选择要展示的图表', ('概念板块排名', '行业排名'))
+
+if option == '概念板块排名':
+    show_board_ranking()
+elif option == '行业排名':
+    show_industry_ranking()
+
+# 显示重复个股的统计信息
+show_repeated_stocks()
+
+
