@@ -109,6 +109,34 @@ def show_board_ranking(board_type):
             st.write(f"{board_name} 成交额前十成分股")
             st.dataframe(top_10_by_volume[['名称', '代码', '成交额', '涨跌幅']])
 
+            short_period = 12
+            long_period = 26
+            signal_period = 9
+
+            for name, top_10 in zip(['涨幅前十', '成交额前十'], [top_10_by_change, top_10_by_volume]):
+                total_weight = top_10['成交额'].sum()
+                weighted_data = pd.DataFrame()
+                for _, stock_row in top_10.iterrows():
+                    full_code = 'SH' + stock_row['代码'] if stock_row['代码'].startswith('6') else 'SZ' + stock_row['代码']
+                    hot_data = ak.stock_hot_rank_detail_em(symbol=full_code)
+                    hot_data['新晋粉丝加权'] = hot_data['新晋粉丝'] * (stock_row['成交额'] / total_weight)
+                    if weighted_data.empty:
+                        weighted_data = hot_data[['时间', '新晋粉丝加权']].copy()
+                        weighted_data.set_index('时间', inplace=True)
+                    else:
+                        weighted_data['新晋粉丝加权'] += hot_data.set_index('时间')['新晋粉丝加权']
+
+                weighted_data['Short_EMA'] = weighted_data['新晋粉丝加权'].ewm(span=short_period, adjust=False).mean()
+                weighted_data['Long_EMA'] = weighted_data['新晋粉丝加权'].ewm(span=long_period, adjust=False).mean()
+                weighted_data['MACD'] = weighted_data['Short_EMA'] - weighted_data['Long_EMA']
+                weighted_data['Signal'] = weighted_data['MACD'].ewm(span=signal_period, adjust=False).mean()
+
+                fig = go.Figure()
+                fig.add_trace(go.Scatter(x=weighted_data.index, y=weighted_data['MACD'], mode='lines', name=f'{name} MACD'))
+                fig.add_trace(go.Scatter(x=weighted_data.index, y=weighted_data['Signal'], mode='lines', name='信号线'))
+                fig.update_layout(title=f"{board_name} - {name} 加权新晋粉丝MACD", xaxis_title="时间", yaxis_title="MACD值")
+                st.plotly_chart(fig)
+
 # Streamlit 应用主界面
 st.title("板块和行业排名图表展示")
 option = st.selectbox('请选择要展示的图表', ('概念板块', '行业板块'))
