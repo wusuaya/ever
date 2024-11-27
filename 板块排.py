@@ -46,24 +46,38 @@ def show_board_ranking(board_type):
     filtered_boards = stock_board_concept_name_em_df.head(10) if board_type == "概念板块" else stock_board_industry_name_em_df.head(10)
 
     fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(10, 8))
-    for index, row in filtered_boards.iterrows():
-        board_name = row['板块名称']
-        stock_board_hist_em_df = ak.stock_board_concept_hist_em(
-            symbol=board_name, period="daily",
-            start_date=start_date, end_date=end_date, adjust=""
-        ) if board_type == "概念板块" else ak.stock_board_industry_hist_em(
-            symbol=board_name, period="日k",
-            start_date=start_date, end_date=end_date, adjust=""
-        )
-        
-        # 确保日期按升序排列
-        stock_board_hist_em_df['日期'] = pd.to_datetime(stock_board_hist_em_df['日期'], format="%Y%m%d")
-        stock_board_hist_em_df = stock_board_hist_em_df.sort_values(by='日期')
 
-        ax1.plot(stock_board_hist_em_df['日期'], stock_board_hist_em_df['成交额'], label=board_name)
-        initial_close = stock_board_hist_em_df['收盘'].iloc[0]
-        scaled_close = stock_board_hist_em_df['收盘'] / initial_close
-        ax2.plot(stock_board_hist_em_df['日期'], scaled_close, label=board_name)
+    # 仅对“概念板块”做日期排序处理
+    if board_type == "概念板块":
+        for index, row in filtered_boards.iterrows():
+            board_name = row['板块名称']
+            stock_board_hist_em_df = ak.stock_board_concept_hist_em(
+                symbol=board_name, period="daily",
+                start_date=start_date, end_date=end_date, adjust=""
+            )
+
+            # 确保日期按升序排列
+            stock_board_hist_em_df['日期'] = pd.to_datetime(stock_board_hist_em_df['日期'], format="%Y%m%d")
+            stock_board_hist_em_df = stock_board_hist_em_df.sort_values(by='日期')
+
+            ax1.plot(stock_board_hist_em_df['日期'], stock_board_hist_em_df['成交额'], label=board_name)
+            initial_close = stock_board_hist_em_df['收盘'].iloc[0]
+            scaled_close = stock_board_hist_em_df['收盘'] / initial_close
+            ax2.plot(stock_board_hist_em_df['日期'], scaled_close, label=board_name)
+    
+    # 保持“行业板块”部分不做改动，按原始逻辑绘制
+    else:
+        for index, row in filtered_boards.iterrows():
+            board_name = row['板块名称']
+            stock_board_hist_em_df = ak.stock_board_industry_hist_em(
+                symbol=board_name, period="日k",
+                start_date=start_date, end_date=end_date, adjust=""
+            )
+
+            ax1.plot(stock_board_hist_em_df['日期'], stock_board_hist_em_df['成交额'], label=board_name)
+            initial_close = stock_board_hist_em_df['收盘'].iloc[0]
+            scaled_close = stock_board_hist_em_df['收盘'] / initial_close
+            ax2.plot(stock_board_hist_em_df['日期'], scaled_close, label=board_name)
 
     ax1.set_title(f"前十{board_type}成交额 - 最近{selected_days}天", fontproperties=font_prop)
     ax1.set_xlabel("日期", fontproperties=font_prop)
@@ -133,11 +147,12 @@ def show_board_ranking(board_type):
 
                 weighted_data['Short_EMA'] = weighted_data['新晋粉丝加权'].ewm(span=short_period, adjust=False).mean()
                 weighted_data['Long_EMA'] = weighted_data['新晋粉丝加权'].ewm(span=long_period, adjust=False).mean()
-                weighted_data['MACD'] = weighted_data['Short_EMA'] - weighted_data['Long_EMA']
-                weighted_data['Signal'] = weighted_data['MACD'].ewm(span=signal_period, adjust=False).mean()
-
+                weighted_data['Signal'] = weighted_data['Short_EMA'] - weighted_data['Long_EMA']
+                
                 fig = go.Figure()
-                fig.add_trace(go.Scatter(x=weighted_data.index, y=weighted_data['MACD'], mode='lines', name="MACD"))
+                fig.add_trace(go.Scatter(x=weighted_data.index, y=weighted_data['新晋粉丝加权'], mode='lines', name="Weighted New Fans"))
+                fig.add_trace(go.Scatter(x=weighted_data.index, y=weighted_data['Short_EMA'], mode='lines', name="Short EMA"))
+                fig.add_trace(go.Scatter(x=weighted_data.index, y=weighted_data['Long_EMA'], mode='lines', name="Long EMA"))
                 fig.add_trace(go.Scatter(x=weighted_data.index, y=weighted_data['Signal'], mode='lines', name="Signal"))
                 fig.update_layout(title=f"{name} - {board_name} MACD图", xaxis_title="日期", yaxis_title="值")
                 st.plotly_chart(fig)
