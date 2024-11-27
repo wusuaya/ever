@@ -137,5 +137,12 @@ def show_board_ranking(board_type):
                 weighted_data['Signal'] = weighted_data['MACD'].ewm(span=signal_period, adjust=False).mean()
 
                 fig = go.Figure()
-                fig.add_trace(go.Scatter(x=weighted_data.index, y=weighted_data['MACD'], mode='lines
+                fig.add_trace(go.Scatter(x=weighted_data.index, y=weighted_data['MACD'], mode='lines', name="MACD"))
+                fig.add_trace(go.Scatter(x=weighted_data.index, y=weighted_data['Signal'], mode='lines', name="Signal"))
+                fig.update_layout(title=f"{name} - {board_name} MACD图", xaxis_title="日期", yaxis_title="值")
+                st.plotly_chart(fig)
 
+# 在streamlit界面中显示交互式选择
+st.title("板块数据展示")
+board_type = st.selectbox("请选择板块类型", ("概念板块", "行业板块"))
+show_board_ranking(board_type)
