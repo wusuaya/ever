@@ -56,14 +56,32 @@ def show_board_ranking(board_type):
             start_date=start_date, end_date=end_date, adjust=""
         )
 
-        # 按日期升序排列
-        stock_board_hist_em_df['日期'] = pd.to_datetime(stock_board_hist_em_df['日期'], format='%Y%m%d', errors='coerce')
-        stock_board_hist_em_df = stock_board_hist_em_df.dropna(subset=['日期'])
+        # 检查和转换日期格式
+        try:
+            stock_board_hist_em_df['日期'] = pd.to_datetime(stock_board_hist_em_df['日期'], format='%Y%m%d', errors='coerce')
+            stock_board_hist_em_df = stock_board_hist_em_df.dropna(subset=['日期'])  # 删除无效的日期
+        except Exception as e:
+            st.error(f"日期转换时出错：{e}")
+
+        # 检查是否存在数据
+        if stock_board_hist_em_df.empty:
+            st.warning(f"没有数据返回：{board_name}，跳过该板块。")
+            continue  # 跳过该板块
 
         # 确保日期按降序排列，确保最新日期出现在最右侧
         stock_board_hist_em_df = stock_board_hist_em_df.sort_values(by='日期', ascending=False)
 
+        # 绘制图表
         ax1.plot(stock_board_hist_em_df['日期'], stock_board_hist_em_df['成交额'], label=board_name)
+        
+        # 确保 '收盘' 列是数值类型，如果是字符串或其他类型，强制转换为数值
+        stock_board_hist_em_df['收盘'] = pd.to_numeric(stock_board_hist_em_df['收盘'], errors='coerce')
+
+        # 确保没有 'NaN' 值
+        if stock_board_hist_em_df['收盘'].isnull().any():
+            st.warning(f"{board_name} 的部分收盘价为空，已跳过这些数据。")
+            stock_board_hist_em_df = stock_board_hist_em_df.dropna(subset=['收盘'])
+
         initial_close = stock_board_hist_em_df['收盘'].iloc[0]
         scaled_close = stock_board_hist_em_df['收盘'] / initial_close
         ax2.plot(stock_board_hist_em_df['日期'], scaled_close, label=board_name)
