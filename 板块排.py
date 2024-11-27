@@ -1,4 +1,3 @@
-
 import streamlit as st
 import akshare as ak
 import matplotlib.pyplot as plt
@@ -25,6 +24,17 @@ else:
     except Exception as e:
         st.error(f"加载字体时出错：{e}")
 
+# 获取板块数据
+excluded_boards = ['昨日连板', '昨日涨停', '昨日连板_含一字', '昨日涨停_含一字', '百元股']
+stock_board_concept_name_em_df = ak.stock_board_concept_name_em()
+stock_board_concept_name_em_df = stock_board_concept_name_em_df[
+    ~stock_board_concept_name_em_df['板块名称'].str.contains('|'.join(excluded_boards))
+]
+stock_board_industry_name_em_df = ak.stock_board_industry_name_em()
+stock_board_industry_name_em_df = stock_board_industry_name_em_df[
+    ~stock_board_industry_name_em_df['板块名称'].str.contains('|'.join(excluded_boards))
+]
+
 # 显示板块数据
 def show_board_ranking(board_type):
     date_range = st.selectbox('请选择绘制图表的时间段', ('5日', '10日', '20日', '30日', '60日'))
@@ -50,7 +60,7 @@ def show_board_ranking(board_type):
         stock_board_hist_em_df['日期'] = pd.to_datetime(stock_board_hist_em_df['日期'], format='%Y%m%d', errors='coerce')
         stock_board_hist_em_df = stock_board_hist_em_df.dropna(subset=['日期'])
 
-        # 将日期列按降序排列，确保最新日期出现在最右侧
+        # 确保日期按降序排列，确保最新日期出现在最右侧
         stock_board_hist_em_df = stock_board_hist_em_df.sort_values(by='日期', ascending=False)
 
         ax1.plot(stock_board_hist_em_df['日期'], stock_board_hist_em_df['成交额'], label=board_name)
