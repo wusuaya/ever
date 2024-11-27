@@ -1,4 +1,3 @@
-
 import streamlit as st
 import akshare as ak
 import matplotlib.pyplot as plt
@@ -57,7 +56,7 @@ def show_board_ranking(board_type):
             start_date=start_date, end_date=end_date, adjust=""
         )
 
-        # 确保数据按日期升序排列
+        # 按日期升序排列
         stock_board_hist_em_df['日期'] = pd.to_datetime(stock_board_hist_em_df['日期'], format='%Y%m%d')
         stock_board_hist_em_df = stock_board_hist_em_df.sort_values(by='日期')
 
@@ -151,3 +150,4 @@ if option == '概念板块':
     show_board_ranking("概念板块")
 elif option == '行业板块':
     show_board_ranking("行业板块")
+
