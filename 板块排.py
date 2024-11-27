@@ -1,40 +1,3 @@
-import streamlit as st
-import akshare as ak
-import matplotlib.pyplot as plt
-from datetime import datetime, timedelta
-import matplotlib.font_manager as fm
-import os
-import pandas as pd
-import plotly.graph_objects as go
-from collections import defaultdict
-
-# 设置字体文件名
-FONT_FILENAME = "NotoSansMonoCJKsc-Regular.otf"
-font_path = os.path.join(os.getcwd(), FONT_FILENAME)
-
-# 检查字体文件是否存在
-if not os.path.exists(font_path):
-    st.error(f"字体文件未找到：{font_path}")
-else:
-    try:
-        font_prop = fm.FontProperties(fname=font_path, size=12)
-        plt.rcParams['font.family'] = font_prop.get_name()
-        plt.rcParams['font.size'] = 12
-        plt.rcParams['axes.unicode_minus'] = False
-    except Exception as e:
-        st.error(f"加载字体时出错：{e}")
-
-# 获取板块数据
-excluded_boards = ['昨日连板', '昨日涨停', '昨日连板_含一字', '昨日涨停_含一字', '百元股']
-stock_board_concept_name_em_df = ak.stock_board_concept_name_em()
-stock_board_concept_name_em_df = stock_board_concept_name_em_df[
-    ~stock_board_concept_name_em_df['板块名称'].str.contains('|'.join(excluded_boards))
-]
-stock_board_industry_name_em_df = ak.stock_board_industry_name_em()
-stock_board_industry_name_em_df = stock_board_industry_name_em_df[
-    ~stock_board_industry_name_em_df['板块名称'].str.contains('|'.join(excluded_boards))
-]
-
 # 显示板块数据
 def show_board_ranking(board_type):
     date_range = st.selectbox('请选择绘制图表的时间段', ('5日', '10日', '20日', '30日', '60日'))
@@ -56,8 +19,16 @@ def show_board_ranking(board_type):
             start_date=start_date, end_date=end_date, adjust=""
         )
 
-        # 按日期升序排列
-        stock_board_hist_em_df['日期'] = pd.to_datetime(stock_board_hist_em_df['日期'], format='%Y%m%d')
+        # 确保日期列格式统一并处理异常数据
+        try:
+            stock_board_hist_em_df['日期'] = pd.to_datetime(stock_board_hist_em_df['日期'], format='%Y%m%d', errors='coerce')
+        except Exception as e:
+            st.error(f"日期转换时出错：{e}")
+        
+        # 删除无效日期的数据
+        stock_board_hist_em_df = stock_board_hist_em_df.dropna(subset=['日期'])
+
+        # 确保数据按日期升序排列
         stock_board_hist_em_df = stock_board_hist_em_df.sort_values(by='日期')
 
         ax1.plot(stock_board_hist_em_df['日期'], stock_board_hist_em_df['成交额'], label=board_name)
