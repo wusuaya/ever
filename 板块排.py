@@ -27,11 +27,11 @@ else:
 # 获取板块数据
 excluded_boards = ['昨日连板', '昨日涨停', '昨日连板_含一字', '昨日涨停_含一字', '百元股']
 stock_board_concept_name_em_df = ak.stock_board_concept_name_em()
-stock_board_concept_name_em_df = stock_board_concept_name_em_df[
+stock_board_concept_name_em_df = stock_board_concept_name_em_df[ 
     ~stock_board_concept_name_em_df['板块名称'].str.contains('|'.join(excluded_boards))
 ]
 stock_board_industry_name_em_df = ak.stock_board_industry_name_em()
-stock_board_industry_name_em_df = stock_board_industry_name_em_df[
+stock_board_industry_name_em_df = stock_board_industry_name_em_df[ 
     ~stock_board_industry_name_em_df['板块名称'].str.contains('|'.join(excluded_boards))
 ]
 
@@ -55,33 +55,12 @@ def show_board_ranking(board_type):
             symbol=board_name, period="日k",
             start_date=start_date, end_date=end_date, adjust=""
         )
-
-        # 检查和转换日期格式
-        try:
-            stock_board_hist_em_df['日期'] = pd.to_datetime(stock_board_hist_em_df['日期'], format='%Y%m%d', errors='coerce')
-            stock_board_hist_em_df = stock_board_hist_em_df.dropna(subset=['日期'])  # 删除无效的日期
-        except Exception as e:
-            st.error(f"日期转换时出错：{e}")
-
-        # 检查是否存在数据
-        if stock_board_hist_em_df.empty:
-            st.warning(f"没有数据返回：{board_name}，跳过该板块。")
-            continue  # 跳过该板块
-
-        # 确保日期按降序排列，确保最新日期出现在最右侧
-        stock_board_hist_em_df = stock_board_hist_em_df.sort_values(by='日期', ascending=False)
-
-        # 绘制图表
-        ax1.plot(stock_board_hist_em_df['日期'], stock_board_hist_em_df['成交额'], label=board_name)
         
-        # 确保 '收盘' 列是数值类型，如果是字符串或其他类型，强制转换为数值
-        stock_board_hist_em_df['收盘'] = pd.to_numeric(stock_board_hist_em_df['收盘'], errors='coerce')
+        # 确保日期按升序排列
+        stock_board_hist_em_df['日期'] = pd.to_datetime(stock_board_hist_em_df['日期'], format="%Y%m%d")
+        stock_board_hist_em_df = stock_board_hist_em_df.sort_values(by='日期')
 
-        # 确保没有 'NaN' 值
-        if stock_board_hist_em_df['收盘'].isnull().any():
-            st.warning(f"{board_name} 的部分收盘价为空，已跳过这些数据。")
-            stock_board_hist_em_df = stock_board_hist_em_df.dropna(subset=['收盘'])
-
+        ax1.plot(stock_board_hist_em_df['日期'], stock_board_hist_em_df['成交额'], label=board_name)
         initial_close = stock_board_hist_em_df['收盘'].iloc[0]
         scaled_close = stock_board_hist_em_df['收盘'] / initial_close
         ax2.plot(stock_board_hist_em_df['日期'], scaled_close, label=board_name)
@@ -113,7 +92,7 @@ def show_board_ranking(board_type):
         except KeyError:
             st.warning(f"未能获取 {board_name} 的成分股数据。")
 
-    repeated_stocks = pd.DataFrame([
+    repeated_stocks = pd.DataFrame([ 
         {'个股名称': stock, '重复次数': info['count'], '所属板块': ', '.join(set(info['boards']))}
         for stock, info in stock_count.items() if info['count'] > 1
     ])
@@ -158,16 +137,5 @@ def show_board_ranking(board_type):
                 weighted_data['Signal'] = weighted_data['MACD'].ewm(span=signal_period, adjust=False).mean()
 
                 fig = go.Figure()
-                fig.add_trace(go.Scatter(x=weighted_data.index, y=weighted_data['MACD'], mode='lines', name=f'{name} MACD'))
-                fig.add_trace(go.Scatter(x=weighted_data.index, y=weighted_data['Signal'], mode='lines', name='信号线'))
-                fig.update_layout(title=f"{board_name} - {name} 加权新晋粉丝MACD", xaxis_title="时间", yaxis_title="MACD值")
-                st.plotly_chart(fig)
+                fig.add_trace(go.Scatter(x=weighted_data.index, y=weighted_data['MACD'], mode='lines
 
-# Streamlit 应用主界面
-st.title("板块和行业排名图表展示")
-option = st.selectbox('请选择要展示的图表', ('概念板块', '行业板块'))
-
-if option == '概念板块':
-    show_board_ranking("概念板块")
-elif option == '行业板块':
-    show_board_ranking("行业板块")
