@@ -55,9 +55,18 @@ def show_board_ranking(board_type):
             symbol=board_name, period="日k",
             start_date=start_date, end_date=end_date, adjust=""
         )
+        
+        # 日期解析：将字符串日期转换为日期类型并格式化
+        stock_board_hist_em_df['日期'] = pd.to_datetime(stock_board_hist_em_df['日期'], format="%Y%m%d")
+        
+        # 绘制成交额折线图
         ax1.plot(stock_board_hist_em_df['日期'], stock_board_hist_em_df['成交额'], label=board_name)
+        
+        # 收盘价归一化
         initial_close = stock_board_hist_em_df['收盘'].iloc[0]
         scaled_close = stock_board_hist_em_df['收盘'] / initial_close
+        
+        # 绘制涨幅折线图
         ax2.plot(stock_board_hist_em_df['日期'], scaled_close, label=board_name)
 
     ax1.set_title(f"前十{board_type}成交额 - 最近{selected_days}天", fontproperties=font_prop)
@@ -87,10 +96,10 @@ def show_board_ranking(board_type):
         except KeyError:
             st.warning(f"未能获取 {board_name} 的成分股数据。")
 
-    repeated_stocks = pd.DataFrame([
-        {'个股名称': stock, '重复次数': info['count'], '所属板块': ', '.join(set(info['boards']))}
-        for stock, info in stock_count.items() if info['count'] > 1
-    ])
+    repeated_stocks = pd.DataFrame([{
+        '个股名称': stock, '重复次数': info['count'], '所属板块': ', '.join(set(info['boards']))
+    } for stock, info in stock_count.items() if info['count'] > 1])
+    
     if not repeated_stocks.empty:
         st.dataframe(repeated_stocks.sort_values(by='重复次数', ascending=False))
     else:
@@ -137,11 +146,5 @@ def show_board_ranking(board_type):
                 fig.update_layout(title=f"{board_name} - {name} 加权新晋粉丝MACD", xaxis_title="时间", yaxis_title="MACD值")
                 st.plotly_chart(fig)
 
-# Streamlit 应用主界面
-st.title("板块和行业排名图表展示")
-option = st.selectbox('请选择要展示的图表', ('概念板块', '行业板块'))
-
-if option == '概念板块':
-    show_board_ranking("概念板块")
-elif option == '行业板块':
-    show_board_ranking("行业板块")
+# 运行示例：
+show_board_ranking("概念板块")  # 你可以根据需要调用 "行业板块"
