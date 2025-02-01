@@ -209,9 +209,11 @@ if not selected_row.empty:
             # 显示图表
             st.plotly_chart(fig)
 
+            # 展示K线数据表格
+            st.write("K线数据列表")
+            st.dataframe(stock_data[['开盘', '最高', '最低', '收盘', '成交量']])
+
     except Exception as e:
         st.write(f"获取股票数据失败：{e}")
 else:
     st.write("无数据可展示")
-
-
