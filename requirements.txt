@@ -3,3 +3,4 @@ akshare
 pandas
 matplotlib
 plotly
+mplfinance
