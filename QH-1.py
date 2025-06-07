@@ -27,7 +27,7 @@ st.title("期货交互式K线模拟交易系统")
 # 用户输入参数
 with st.sidebar:
     st.header("期货合约参数")
-    symbol = st.text_input("输入期货代码 (例如: RB0)", value="AO2509")
+    symbol = st.text_input("输入期货代码 (例如: AO2509)", value="AO2509")
     period = st.selectbox("选择K线周期", ["1", "5", "15", "30", "60"], index=1)
     contract_multiplier = st.number_input("合约乘数 (元/点)", min_value=1, value=10)
     st.session_state.margin_ratio = st.slider("保证金比例", min_value=0.05, max_value=0.5, value=0.1, step=0.05)
