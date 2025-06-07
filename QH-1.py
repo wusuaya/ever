@@ -1,9 +1,9 @@
 import streamlit as st
 import pandas as pd
 import akshare as ak
-import mplfinance as mpf
-from datetime import datetime, timedelta
 import numpy as np
+import plotly.graph_objects as go
+from datetime import datetime, timedelta
 
 # 初始化会话状态
 if 'current_index' not in st.session_state:
@@ -31,6 +31,10 @@ with st.sidebar:
     period = st.selectbox("选择K线周期", ["1", "5", "15", "30", "60"], index=1)
     contract_multiplier = st.number_input("合约乘数 (元/点)", min_value=1, value=10)
     st.session_state.margin_ratio = st.slider("保证金比例", min_value=0.05, max_value=0.5, value=0.1, step=0.05)
+    
+    st.header("技术指标")
+    # 添加均线选择选项
+    ma_options = st.selectbox("选择均线类型", ["裸K线", "5均线", "5+20均线"], index=0)
     
     st.header("时间范围")
     end_date = datetime.today()
@@ -64,6 +68,70 @@ def load_futures_data(symbol, period, start_date, end_date):
 
 df = load_futures_data(symbol, period, start_date, end_date)
 
+# 创建K线图函数 - 使用中国习惯颜色（红涨绿跌）
+def create_candlestick_chart(df, position_index=None, position_type=None, ma_options="裸K线"):
+    fig = go.Figure()
+    
+    # 添加K线 - 使用中国习惯颜色（红涨绿跌）
+    fig.add_trace(go.Candlestick(
+        x=df.index,
+        open=df['open'],
+        high=df['high'],
+        low=df['low'],
+        close=df['close'],
+        name='K线',
+        increasing_line_color='red',   # 上涨为红色
+        decreasing_line_color='green'  # 下跌为绿色
+    ))
+    
+    # 根据选择添加均线
+    if ma_options != "裸K线":
+        if "5均线" in ma_options or "5+20均线" in ma_options:
+            df['MA5'] = df['close'].rolling(5).mean()
+            fig.add_trace(go.Scatter(
+                x=df.index,
+                y=df['MA5'],
+                name='5周期均线',
+                line=dict(width=1, color='blue')
+            ))
+        
+        if "5+20均线" in ma_options:
+            df['MA20'] = df['close'].rolling(20).mean()
+            fig.add_trace(go.Scatter(
+                x=df.index,
+                y=df['MA20'],
+                name='20周期均线',
+                line=dict(width=1, color='orange')
+            ))
+    
+    # 添加持仓标记
+    if position_index is not None and position_index < len(df):
+        marker_color = 'red' if position_type == 'long' else 'green'  # 中国习惯：红色代表多头，绿色代表空头
+        marker_symbol = 'triangle-up' if position_type == 'long' else 'triangle-down'
+        fig.add_trace(go.Scatter(
+            x=[df.index[position_index]],
+            y=[df.iloc[position_index]['low'] * 0.99],
+            mode='markers',
+            marker=dict(
+                size=12,
+                color=marker_color,
+                symbol=marker_symbol
+            ),
+            name='开仓位置'
+        ))
+    
+    # 设置图表布局
+    fig.update_layout(
+        title='期货K线图',
+        xaxis_title='时间',
+        yaxis_title='价格',
+        xaxis_rangeslider_visible=False,
+        height=500,
+        template='plotly_white'
+    )
+    
+    return fig
+
 # 如果没有数据，提示用户
 if df.empty:
     st.error("无法获取期货数据，请检查合约代码或时间范围。")
@@ -86,6 +154,15 @@ else:
     
     total_equity = st.session_state.cash + floating_pnl
     
+    # 计算盈亏比
+    win_rate = 0
+    if st.session_state.actions:
+        wins = 0
+        for action in st.session_state.actions:
+            if "盈亏: ¥" in action and float(action.split("盈亏: ¥")[1].split(" ")[0]) > 0:
+                wins += 1
+        win_rate = (wins / len(st.session_state.actions)) * 100 if st.session_state.actions else 0
+    
     # 显示账户信息
     st.sidebar.header("账户信息")
     st.sidebar.write(f"可用资金: ¥{st.session_state.cash:.2f}")
@@ -95,47 +172,35 @@ else:
     st.sidebar.write(f"浮动盈亏: ¥{floating_pnl:.2f}")
     st.sidebar.write(f"总权益: ¥{total_equity:.2f}")
     st.sidebar.write(f"当前价格: ¥{current_price:.2f}")
+    st.sidebar.write(f"盈亏比: {win_rate:.2f}%")
+    
+    # 显示最终收益总结
+    if st.session_state.current_index == total_bars - 1:
+        initial_capital = 10000
+        profit = total_equity - initial_capital
+        roi = (profit / initial_capital) * 100
+        st.sidebar.header("交易总结")
+        st.sidebar.write(f"初始资金: ¥{initial_capital:.2f}")
+        st.sidebar.write(f"最终权益: ¥{total_equity:.2f}")
+        st.sidebar.write(f"总收益: ¥{profit:.2f}")
+        st.sidebar.write(f"收益率: {roi:.2f}%")
+        st.sidebar.write(f"总交易次数: {len(st.session_state.actions)}")
 
     # 显示K线图，保持50根K线宽度
     start_idx = max(0, st.session_state.current_index - 50)
     end_idx = min(total_bars, st.session_state.current_index + 1)
-    plot_data = df.iloc[start_idx:end_idx]
+    plot_data = df.iloc[start_idx:end_idx].copy()
     
-    # 添加标记显示当前持仓位置
-    apds = []
+    # 获取持仓标记信息
+    position_index = None
+    position_type = None
     if st.session_state.position != 0:
-        # 找到持仓开始位置
-        position_start_idx = max(0, st.session_state.current_index - 50)
-        position_data = df.iloc[position_start_idx:st.session_state.current_index]
-        
-        # 创建标记
-        marker_color = 'green' if st.session_state.position > 0 else 'red'
-        markers = [np.nan] * len(plot_data)
-        if not position_data.empty:
-            # 找到持仓开始位置在plot_data中的索引
-            pos_idx = position_data.index.get_loc(df.index[st.session_state.current_index - abs(st.session_state.position)])
-            markers[pos_idx] = position_data.iloc[pos_idx]['low'] * 0.99
-            
-            apd = mpf.make_addplot(
-                markers,
-                type='scatter',
-                markersize=100,
-                marker='^' if st.session_state.position > 0 else 'v',
-                color=marker_color
-            )
-            apds.append(apd)
+        position_index = st.session_state.current_index - start_idx
+        position_type = 'long' if st.session_state.position > 0 else 'short'
     
-    # 绘制K线图
-    fig, axlist = mpf.plot(
-        plot_data,
-        type='candle',
-        volume=True,
-        style='charles',
-        mav=(5, 10, 20),
-        addplot=apds,
-        returnfig=True
-    )
-    st.pyplot(fig)
+    # 创建K线图
+    fig = create_candlestick_chart(plot_data, position_index, position_type, ma_options)
+    st.plotly_chart(fig, use_container_width=True)
 
     # 显示当前K线信息
     current_time = df.index[st.session_state.current_index]
@@ -224,6 +289,13 @@ else:
             else:
                 st.error("资金不足")
 
+    with col5:
+        if st.button("不操作"):
+            st.session_state.actions.append(
+                f"[{current_time.strftime('%Y-%m-%d %H:%M')}] 不操作"
+            )
+            st.info("保持不变")
+
     col6, col7, col8, col9, col10 = st.columns(5)
 
     with col6:
@@ -301,55 +373,17 @@ else:
                 st.error("没有空头持仓")
 
     with col10:
-        if st.button("不操作"):
-            st.session_state.actions.append(
-                f"[{current_time.strftime('%Y-%m-%d %H:%M')}] 不操作"
-            )
-            st.info("保持不变")
-
-    # 下一根K线按钮
-    if st.session_state.current_index < total_bars - 1:
         if st.button("下一根K线"):
-            st.session_state.current_index += 1
-            # 记录当前权益
-            st.session_state.portfolio_value.append(total_equity)
-    else:
-        st.success("已到最后一根K线")
+            if st.session_state.current_index < total_bars - 1:
+                st.session_state.current_index += 1
+                st.experimental_rerun()
+            else:
+                st.success("已到最后一根K线")
 
     # 显示交易记录
     st.header("交易记录")
     for action in st.session_state.actions[-20:]:  # 显示最近20条记录
         st.write(action)
-
-    # 显示权益曲线
-    if len(st.session_state.portfolio_value) > 1:
-        st.header("账户权益曲线")
-        equity_df = pd.DataFrame({
-            '时间': df.index[50:50+len(st.session_state.portfolio_value)],
-            '权益': st.session_state.portfolio_value
-        })
-        st.line_chart(equity_df.set_index('时间'))
-
-    # 显示最终收益
-    if st.session_state.current_index == total_bars - 1:
-        initial_capital = 10000
-        profit = total_equity - initial_capital
-        roi = (profit / initial_capital) * 100
-        st.header("交易总结")
-        st.write(f"初始资金: ¥{initial_capital:.2f}")
-        st.write(f"最终权益: ¥{total_equity:.2f}")
-        st.write(f"总收益: ¥{profit:.2f}")
-        st.write(f"收益率: {roi:.2f}%")
-        st.write(f"总交易次数: {len(st.session_state.actions)}")
-        
-        # 计算胜率 (如果有交易)
-        if st.session_state.actions:
-            wins = 0
-            for action in st.session_state.actions:
-                if "盈亏: ¥" in action and float(action.split("盈亏: ¥")[1].split(" ")[0]) > 0:
-                    wins += 1
-            win_rate = (wins / len(st.session_state.actions)) * 100 if st.session_state.actions else 0
-            st.write(f"胜率: {win_rate:.2f}%")
 
 # 添加重置按钮
 if st.sidebar.button("重置交易"):
