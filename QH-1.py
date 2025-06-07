@@ -124,6 +124,15 @@ else:
                 color=marker_color
             )
             apds.append(apd)
+
+    # 添加自定义A股配色方案
+    a_share_style = mpf.make_marketcolors(
+        up='red',     # 上涨为红色
+        down='green', # 下跌为绿色
+        edge='inherit',
+        wick='inherit',
+        volume='inherit'
+    )
     
     # 绘制K线图
     fig, axlist = mpf.plot(
