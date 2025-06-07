@@ -130,7 +130,7 @@ else:
         plot_data,
         type='candle',
         volume=True,
-        style='charles',
+        style='nightclouds',
         mav=(5,20),
         addplot=apds,
         returnfig=True
