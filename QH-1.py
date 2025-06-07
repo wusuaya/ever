@@ -131,7 +131,7 @@ else:
         plot_data,
         type='candle',
         volume=True,
-        style='yahoo',
+        style='mike',
         mav=(5,20),
         addplot=apds,
         returnfig=True
