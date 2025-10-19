@@ -19,38 +19,18 @@ MODEL_NAME = "gemini-2.5-flash-image"  # 使用的模型名称
 
 
 PROMPT_OPTIONS = {
-    "黄昏商业街": "你是lead8的设计总监，这是一张我简单渲染的图片，我需要你将他变成能够赢得国际竞赛的精致效果图，表达一个夜市热闹的氛围，丰富的人物活动，餐饮外摆，霓虹灯的延时摄影风格，所有材质变为PBR材质效果，玻璃极具质感，店铺内布置也非常时尚与具有设计感，时刻定在偏黄昏的时刻，但是整体色调注意不要整体泛黄，需要有丰富的层次对比，针对近景的店铺可以改为完全打开的开放式设计，类似非常有个性的咖啡厅，形成非常舒适的室内外联通环境。外面的人行道可以增加来往的人群，路边可以增加一些行道树及绿植，但是树木不要对建筑形成大面积的遮挡，还是要突出建筑。目前的铺地还是太单调，需要增加质感及细节，可以考虑雨后湿润，有点反光的感觉",
-    "实景合成": """将图片转化为建筑实景合成效果图，需要非常真实地表达周边环境，可以适当增加人，车，植物，等配景组合，使画面生动活泼，不同功能类型的建筑内部可以隐约看到室内的布置，修改后的效果图需要达到可以赢得国际竞赛的水平""",
-    "吉卜力风格": """将图片转化为为吉卜力动画风格的一张插画，充满幻想与温暖的色彩。使用柔和的亮色调，营造出温馨、梦幻般的氛围。模型细节以卡通化的方式呈现，轮廓清晰且流畅，背景富有层次，色彩丰富且不失自然感。加入一些细腻的阴影和光线效果，增强其三维感和梦境般的感觉。""",
-    "赛博风格": """将图片转化为未来赛博朋克风格，突出金属质感和高科技元素。使用冷色调如蓝色、银色和灰色，营造出现代、未来感的氛围。加强光泽、反射效果，模型表面展示极致细节，配合几何形状和流线型设计。背景中加入虚拟数字或虚拟光线，增加科技感和科幻效果。""",
-     "妹岛风格": """Based on the input architectural model image, transform it into a SANAA, Kazuyo Sejima style architectural analysis diagram. 
-Minimalist design, large areas of white space, soft delicate lines, semi-transparent layers, low-saturation colors (white, light gray, pale blue, soft green). 
-Show analysis arrows, circulation lines, semi-transparent color blocks to indicate functions. 
-Add small minimalist human figures and trees for scale. 
-Output as a professional architectural analysis drawing, not an art illustration, highlighting spatial relationships and analysis logic.""",
+    "黄昏街景": "你是lead8的设计总监，这是一张我简单渲染的图片，我需要你将他变成能够赢得国际竞赛的精致效果图，表达一个夜市热闹的氛围，丰富的人物活动，餐饮外摆，所有材质变为PBR材质效果，玻璃极具质感，店铺内布置也非常时尚与具有设计感，时刻定在偏黄昏的时刻，但是整体色调注意不要整体泛黄，需要有丰富的层次对比，针对近景的店铺可以改为完全打开的开放式设计，类似非常有个性的咖啡厅，形成非常舒适的室内外联通环境。外面的人行道可以增加来往的人群，路边可以增加一些行道树及绿植，但是树木不要对建筑形成大面积的遮挡，还是要突出建筑。目前的铺地还是太单调，需要增加质感及细节，可以考虑雨后湿润，有点反光的感觉",
+    "写实风格": """将图片转化为建筑实景合成效果图，需要非常真实地表达周边环境，可以适当增加人，车，植物，等配景组合，使画面生动活泼，不同功能类型的建筑内部可以隐约看到室内的布置，修改后的效果图需要达到可以赢得国际竞赛的水平""",
 
-    "MIR风格": """Transform the input architectural model image into a high-end visualization in the style of MIR. 
+    "冷淡风格": """Transform the input architectural model image into a high-end visualization in the style of MIR. 
 Cinematic, poetic atmosphere, storytelling mood. 
 Soft light and shadow, cloudy or dawn lighting, low saturation cool tones, subtle warm accents. 
 Minimalist yet emotional composition, large white space, realistic but painterly feeling. 
 Include small everyday human figures blending naturally with the environment. 
 Output as a high-end atmospheric architectural visualization.""",
+    "城市日景": """将输入的建筑模型截图转化为 SOM 风格的专业效果图。保持原有构图和视角完全不变。生成超清晰的现代国际都市氛围视觉效果。采用强对比度构图，采用明亮日光或都市夜景灯光渲染。精准表现材质细节：玻璃幕墙的反射效果、钢结构线条感、混凝土质感。呈现大尺度城市透视感，强化秩序感与网格逻辑的视觉组织。融入专业商务人士形象与国际大都市背景元素。最终输出为简洁极简主义的建筑可视化效果，强调清晰度、精准性与国际一流设计水准。""",
 
-    "SOM风格": """Transform the input architectural model image into an SOM-style visualization. 
-Ultra-clear, modern international city atmosphere. 
-Strong contrast, bright daylight or urban night lighting. 
-Precise materials: reflective glass curtain walls, steel, concrete. 
-Large-scale urban perspective, strong order and grid logic. 
-Include professional business people, international metropolitan context. 
-Output as a sleek, modernist architectural visualization emphasizing clarity and precision.""",
-
-    "KPF风格": """Transform the input architectural model image into a KPF-style visualization. 
-Futuristic, grand metropolitan scale. 
-Dynamic perspective, aerial or oblique city view. 
-Cool blue tones, glowing night lights, high-tech glass and LED facades. 
-Emphasize skyscrapers and urban skyline. 
-Include dynamic crowds, traffic, and vibrant city life. 
-Output as a futuristic metropolitan architectural visualization with dramatic impact."""
+    "人文暖调": """将输入的建筑模型截图转化为 KPF 风格的专业效果图。保持原有构图和视角完全不变。呈现温暖而富有人文气息的都市氛围，采用柔和自然光线或暖色调黄昏光影。注重材质的层次与细腻质感：哑光与高光玻璃的组合、石材肌理、金属暖色调表面。强调建筑的雕塑感与立体层次，展现优雅的体块关系与韵律变化。融入生动的城市生活场景：行人互动、街道活力、绿化景观细节。背景呈现多元文化的国际都市语境，强调场所精神与人性化尺度。最终输出为精致、富有叙事性的建筑可视化效果，平衡技术精度与艺术表现力。"""
 }
 
 # API调用设置
