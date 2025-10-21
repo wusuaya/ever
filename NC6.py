@@ -1,570 +1,434 @@
-import os
-import base64
-import requests
-import json
-from datetime import datetime
 import streamlit as st
-from PIL import Image, ImageDraw
+import base64
+from PIL import Image
 import io
-import streamlit.components.v1 as components
+import json
 import time
 
-# ====================================
-# 用户配置变量
-# ====================================
+# ==================== 页面配置 ====================
+st.set_page_config(
+    page_title="全自动图像区域标注系统",
+    page_icon="🖼️",
+    layout="wide"
+)
 
-API_KEY = "sk-wBuUIEArjm2BoTQBCQgzf2bhzksx87xg3pQ3cPsvccmULhAk"
-BASE_URL = "https://api.sydney-ai.com/v1"  
-MODEL_NAME = "gemini-2.5-flash-image-vip"
-API_TIMEOUT = 120
+# ==================== 初始化 Session State ====================
+if 'polygon_data' not in st.session_state:
+    st.session_state.polygon_data = None
+if 'image_data' not in st.session_state:
+    st.session_state.image_data = None
+if 'check_data' not in st.session_state:
+    st.session_state.check_data = False
 
-# ====================================
-# 功能函数
-# ====================================
+# ==================== 核心函数 ====================
 
-def image_to_base64(image):
-   """将PIL图像转换为base64格式"""
-   buffered = io.BytesIO()
-   image.save(buffered, format="PNG")
-   img_str = base64.b64encode(buffered.getvalue()).decode("utf-8")
-   return "data:image/png;base64," + img_str
+def create_polygon_selector_auto(image_b64):
+    """全自动多边形选择器 - 无需手动复制粘贴"""
+    
+    html_code = f"""
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <meta charset="UTF-8">
+        <style>
+            * {{
+                margin: 0;
+                padding: 0;
+                box-sizing: border-box;
+            }}
+            body {{
+                padding: 20px;
+                font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+                background: #0e1117;
+                color: white;
+            }}
+            .container {{
+                max-width: 1200px;
+                margin: 0 auto;
+            }}
+            #canvas {{
+                border: 3px solid #4CAF50;
+                cursor: crosshair;
+                display: block;
+                margin: 20px auto;
+                background: white;
+                box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+                border-radius: 8px;
+            }}
+            .controls {{
+                text-align: center;
+                margin: 25px 0;
+            }}
+            button {{
+                padding: 14px 35px;
+                margin: 0 12px;
+                font-size: 17px;
+                font-weight: 600;
+                cursor: pointer;
+                border: none;
+                border-radius: 8px;
+                transition: all 0.3s ease;
+                box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+            }}
+            button:hover {{
+                transform: translateY(-2px);
+                box-shadow: 0 4px 8px rgba(0,0,0,0.3);
+            }}
+            button:active {{
+                transform: translateY(0);
+            }}
+            #confirmBtn {{
+                background: linear-gradient(135deg, #4CAF50, #45a049);
+                color: white;
+            }}
+            #confirmBtn:disabled {{
+                background: #666;
+                cursor: not-allowed;
+                transform: none;
+            }}
+            #clearBtn {{
+                background: linear-gradient(135deg, #f44336, #da190b);
+                color: white;
+            }}
+            #status {{
+                text-align: center;
+                margin: 20px 0;
+                font-size: 18px;
+                min-height: 30px;
+                font-weight: 600;
+                padding: 12px;
+                border-radius: 8px;
+                background: rgba(255,255,255,0.1);
+            }}
+            .success {{
+                background: rgba(76, 175, 80, 0.2) !important;
+                color: #4CAF50 !important;
+                border: 2px solid #4CAF50;
+            }}
+            .info {{
+                color: #2196F3;
+                border: 2px solid rgba(33, 150, 243, 0.3);
+            }}
+            .error {{
+                background: rgba(244, 67, 54, 0.2) !important;
+                color: #f44336 !important;
+                border: 2px solid #f44336;
+            }}
+            .point-info {{
+                text-align: center;
+                color: #aaa;
+                margin-top: 10px;
+                font-size: 14px;
+            }}
+        </style>
+    </head>
+    <body>
+        <div class="container">
+            <div id="status" class="info">🖱️ 在图片上点击绘制多边形顶点（至少3个点）</div>
+            <canvas id="canvas"></canvas>
+            <div class="point-info">
+                已标注 <span id="pointCount">0</span> 个点 | 
+                <span style="color: #ff0000;">●</span> 红色为起点 | 
+                <span style="color: #4CAF50;">●</span> 绿色为其他顶点
+            </div>
+            <div class="controls">
+                <button id="confirmBtn">✓ 确认选区（自动保存）</button>
+                <button id="clearBtn">✗ 清除重画</button>
+            </div>
+        </div>
 
-def create_polygon_selector(image_base64, height=750):
-   """创建多边形选择器组件"""
-   html_code = f"""
-   <!DOCTYPE html>
-   <html>
-   <head>
-       <style>
-           body {{
-               margin: 0;
-               padding: 20px;
-               font-family: Arial, sans-serif;
-               background: #f0f0f0;
-           }}
-           .container {{
-               max-width: 100%;
-               margin: 0 auto;
-               background: white;
-               padding: 20px;
-               border-radius: 8px;
-               box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-           }}
-           #canvas {{
-               border: 2px solid #4CAF50;
-               cursor: crosshair;
-               display: block;
-               margin: 0 auto;
-               max-width: 100%;
-           }}
-           .controls {{
-               margin-top: 15px;
-               text-align: center;
-           }}
-           button {{
-               padding: 12px 24px;
-               margin: 5px;
-               font-size: 16px;
-               border: none;
-               border-radius: 4px;
-               cursor: pointer;
-               transition: all 0.3s;
-               font-weight: bold;
-           }}
-           .btn-primary {{
-               background: #4CAF50;
-               color: white;
-           }}
-           .btn-primary:hover {{
-               background: #45a049;
-           }}
-           .btn-secondary {{
-               background: #f44336;
-               color: white;
-           }}
-           .btn-secondary:hover {{
-               background: #da190b;
-           }}
-           .btn-info {{
-               background: #2196F3;
-               color: white;
-           }}
-           .btn-info:hover {{
-               background: #0b7dda;
-           }}
-           .info {{
-               margin-top: 10px;
-               padding: 12px;
-               background: #e3f2fd;
-               border-radius: 4px;
-               color: #1976d2;
-               font-size: 14px;
-           }}
-           .point-count {{
-               margin-top: 10px;
-               padding: 8px;
-               background: #fff3cd;
-               border-radius: 4px;
-               color: #856404;
-               font-weight: bold;
-           }}
-           .success-msg {{
-               margin-top: 10px;
-               padding: 12px;
-               background: #d4edda;
-               border: 1px solid #c3e6cb;
-               color: #155724;
-               border-radius: 4px;
-               display: none;
-           }}
-       </style>
-   </head>
-   <body>
-       <div class="container">
-           <canvas id="canvas"></canvas>
-           <div class="point-count" id="pointCount">已选择顶点数: 0</div>
-           <div class="controls">
-               <button class="btn-secondary" onclick="clearPoints()">🗑️ 清除所有点</button>
-               <button class="btn-info" onclick="undoPoint()">↩️ 撤销上一点</button>
-               <button class="btn-primary" onclick="confirmMask()">✅ 确认蒙版</button>
-           </div>
-           <div class="success-msg" id="successMsg">
-               ✅ 蒙版已确认！数据已自动保存
-           </div>
-           <div class="info">
-               <strong>📌 使用说明：</strong>点击图片添加多边形顶点（至少3个点），红色点为起点，绿色点为其他顶点
-           </div>
-       </div>
+        <script>
+            const canvas = document.getElementById('canvas');
+            const ctx = canvas.getContext('2d');
+            const status = document.getElementById('status');
+            const pointCount = document.getElementById('pointCount');
+            const confirmBtn = document.getElementById('confirmBtn');
+            const clearBtn = document.getElementById('clearBtn');
+            
+            let points = [];
+            const img = new Image();
+            
+            // 加载图片
+            img.onload = function() {{
+                const scale = Math.min(800 / img.width, 600 / img.height, 1);
+                canvas.width = img.width * scale;
+                canvas.height = img.height * scale;
+                redraw();
+            }};
+            
+            img.src = 'data:image/png;base64,{image_b64}';
+            
+            // 重绘画布
+            function redraw() {{
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+                ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+                
+                if (points.length > 0) {{
+                    // 绘制多边形
+                    ctx.beginPath();
+                    ctx.moveTo(points[0].x, points[0].y);
+                    for (let i = 1; i < points.length; i++) {{
+                        ctx.lineTo(points[i].x, points[i].y);
+                    }}
+                    ctx.closePath();
+                    ctx.strokeStyle = '#4CAF50';
+                    ctx.lineWidth = 3;
+                    ctx.stroke();
+                    ctx.fillStyle = 'rgba(76, 175, 80, 0.25)';
+                    ctx.fill();
+                    
+                    // 绘制顶点
+                    points.forEach((point, index) => {{
+                        ctx.beginPath();
+                        ctx.arc(point.x, point.y, 6, 0, 2 * Math.PI);
+                        ctx.fillStyle = index === 0 ? '#ff0000' : '#4CAF50';
+                        ctx.fill();
+                        ctx.strokeStyle = 'white';
+                        ctx.lineWidth = 2;
+                        ctx.stroke();
+                    }});
+                }}
+            }}
+            
+            // 点击添加顶点
+            canvas.addEventListener('click', function(e) {{
+                const rect = canvas.getBoundingClientRect();
+                const x = e.clientX - rect.left;
+                const y = e.clientY - rect.top;
+                
+                points.push({{x: x, y: y}});
+                pointCount.textContent = points.length;
+                redraw();
+                
+                if (points.length >= 3) {{
+                    status.textContent = `✓ 已添加 ${{points.length}} 个点，可以确认了`;
+                    status.className = 'info';
+                }} else {{
+                    status.textContent = `已添加 ${{points.length}} 个点，还需要 ${{3 - points.length}} 个点`;
+                    status.className = 'info';
+                }}
+            }});
+            
+            // 确认按钮
+            confirmBtn.addEventListener('click', function() {{
+                if (points.length < 3) {{
+                    status.textContent = '❌ 至少需要3个点才能形成区域！';
+                    status.className = 'error';
+                    return;
+                }}
+                
+                confirmBtn.disabled = true;
+                
+                // 归一化坐标（相对于图片尺寸）
+                const normalizedPoints = points.map(p => ({{
+                    x: Math.round((p.x / canvas.width) * 10000) / 10000,
+                    y: Math.round((p.y / canvas.height) * 10000) / 10000
+                }}));
+                
+                const jsonData = JSON.stringify(normalizedPoints);
+                
+                // 方法1: localStorage (主要方法)
+                try {{
+                    localStorage.setItem('streamlit_polygon_data', jsonData);
+                    localStorage.setItem('streamlit_data_timestamp', Date.now().toString());
+                }} catch(e) {{
+                    console.error('localStorage error:', e);
+                }}
+                
+                // 方法2: postMessage (备用方法)
+                try {{
+                    window.parent.postMessage({{
+                        type: 'streamlit:setComponentValue',
+                        value: jsonData
+                    }}, '*');
+                }} catch(e) {{
+                    console.error('postMessage error:', e);
+                }}
+                
+                status.textContent = '✓ 数据已保存！页面即将刷新...';
+                status.className = 'success';
+                
+                // 延迟后触发刷新
+                setTimeout(() => {{
+                    try {{
+                        window.parent.postMessage({{
+                            type: 'streamlit:setComponentValue',
+                            value: 'REFRESH_TRIGGER'
+                        }}, '*');
+                    }} catch(e) {{}}
+                    
+                    // 强制标记需要刷新
+                    localStorage.setItem('streamlit_need_refresh', 'true');
+                }}, 800);
+            }});
+            
+            // 清除按钮
+            clearBtn.addEventListener('click', function() {{
+                points = [];
+                pointCount.textContent = '0';
+                redraw();
+                status.textContent = '🖱️ 画布已清除，重新开始绘制';
+                status.className = 'info';
+                confirmBtn.disabled = false;
+            }});
+        </script>
+    </body>
+    </html>
+    """
+    
+    return html_code
 
-       <script>
-           const canvas = document.getElementById('canvas');
-           const ctx = canvas.getContext('2d');
-           const pointCountDiv = document.getElementById('pointCount');
-           const successMsg = document.getElementById('successMsg');
-           let points = [];
-           let img = new Image();
-           let isImageLoaded = false;
-           
-           img.onload = function() {{
-               const maxWidth = 800;
-               const scale = Math.min(maxWidth / img.width, 1);
-               canvas.width = img.width * scale;
-               canvas.height = img.height * scale;
-               
-               ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-               
-               canvas.dataset.scale = scale;
-               canvas.dataset.originalWidth = img.width;
-               canvas.dataset.originalHeight = img.height;
-               
-               isImageLoaded = true;
-           }};
-           
-           img.src = '{image_base64}';
-           
-           canvas.addEventListener('click', function(e) {{
-               if (!isImageLoaded) {{
-                   alert('请等待图片加载完成');
-                   return;
-               }}
-               
-               const rect = canvas.getBoundingClientRect();
-               const x = e.clientX - rect.left;
-               const y = e.clientY - rect.top;
-               
-               points.push({{x: x, y: y}});
-               updatePointCount();
-               redraw();
-           }});
-           
-           function updatePointCount() {{
-               pointCountDiv.textContent = '已选择顶点数: ' + points.length;
-           }}
-           
-           function redraw() {{
-               ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-               
-               if (points.length === 0) return;
-               
-               ctx.beginPath();
-               ctx.moveTo(points[0].x, points[0].y);
-               
-               for (let i = 1; i < points.length; i++) {{
-                   ctx.lineTo(points[i].x, points[i].y);
-               }}
-               
-               if (points.length > 2) {{
-                   ctx.lineTo(points[0].x, points[0].y);
-                   ctx.fillStyle = 'rgba(76, 175, 80, 0.3)';
-                   ctx.fill();
-               }}
-               
-               ctx.strokeStyle = '#4CAF50';
-               ctx.lineWidth = 3;
-               ctx.stroke();
-               
-               points.forEach((point, index) => {{
-                   ctx.beginPath();
-                   ctx.arc(point.x, point.y, 6, 0, 2 * Math.PI);
-                   ctx.fillStyle = index === 0 ? '#f44336' : '#4CAF50';
-                   ctx.fill();
-                   ctx.strokeStyle = 'white';
-                   ctx.lineWidth = 2;
-                   ctx.stroke();
-               }});
-           }}
-           
-           function clearPoints() {{
-               points = [];
-               updatePointCount();
-               redraw();
-               successMsg.style.display = 'none';
-           }}
-           
-           function undoPoint() {{
-               if (points.length > 0) {{
-                   points.pop();
-                   updatePointCount();
-                   redraw();
-               }}
-           }}
-           
-           function confirmMask() {{
-               if (points.length < 3) {{
-                   alert('❌ 请至少选择3个点来形成一个区域！');
-                   return;
-               }}
-               
-               // 转换为原始图片尺寸的坐标
-               const scale = parseFloat(canvas.dataset.scale);
-               const originalPoints = points.map(p => ({{
-                   x: Math.round(p.x / scale),
-                   y: Math.round(p.y / scale)
-               }}));
-               
-               // 将数据发送到Streamlit
-               const jsonString = JSON.stringify(originalPoints);
-               window.parent.postMessage({{
-                   type: 'streamlit:setComponentValue',
-                   value: jsonString
-               }}, '*');
-               
-               // 显示成功消息
-               successMsg.style.display = 'block';
-               
-               // 2秒后自动隐藏成功消息
-               setTimeout(() => {{
-                   successMsg.style.display = 'none';
-               }}, 2000);
-           }}
-       </script>
-   </body>
-   </html>
-   """
-   
-   return components.html(html_code, height=height, scrolling=True)
 
-def create_mask_from_points(image_size, points_json):
-   """根据多边形顶点创建蒙版"""
-   if not points_json:
-       return None
-   
-   try:
-       points = json.loads(points_json)
-       if len(points) < 3:
-           return None
-       
-       mask = Image.new('L', image_size, 0)
-       draw = ImageDraw.Draw(mask)
-       polygon_points = [(p['x'], p['y']) for p in points]
-       draw.polygon(polygon_points, fill=255)
-       
-       return mask
-   except Exception as e:
-       st.error(f"创建蒙版失败: {e}")
-       return None
+def create_data_reader():
+    """创建隐藏的数据读取器"""
+    reader_html = """
+    <script>
+        try {
+            const data = localStorage.getItem('streamlit_polygon_data');
+            const needRefresh = localStorage.getItem('streamlit_need_refresh');
+            
+            if (data && needRefresh === 'true') {
+                // 发送数据给 Streamlit
+                window.parent.postMessage({
+                    type: 'streamlit:setComponentValue',
+                    value: data
+                }, '*');
+                
+                // 清除标记
+                localStorage.removeItem('streamlit_need_refresh');
+            }
+        } catch(e) {
+            console.error('Reader error:', e);
+        }
+    </script>
+    """
+    return reader_html
 
-def extract_masked_region(image, mask):
-   """从图片中提取蒙版区域并裁剪到最小边界框"""
-   # 获取蒙版的边界框
-   bbox = mask.getbbox()
-   if not bbox:
-       return None
-   
-   # 裁剪图片和蒙版到边界框
-   cropped_image = image.crop(bbox)
-   cropped_mask = mask.crop(bbox)
-   
-   return cropped_image, cropped_mask
 
-def resize_reference_to_match_base(ref_image, ref_mask, base_size):
-   """将参考图调整为与底图相同的尺寸，保持蒙版区域不变形"""
-   # 直接调整到底图尺寸
-   resized_ref = ref_image.resize(base_size, Image.Resampling.LANCZOS)
-   resized_mask = ref_mask.resize(base_size, Image.Resampling.LANCZOS)
-   
-   return resized_ref, resized_mask
+# ==================== 主界面 ====================
 
-def call_api_with_mask(api_key, base_url, model, prompt, base_image_data, mask_data, ref_image_data, ref_mask_data, timeout=API_TIMEOUT):
-   """调用API进行局部修改"""
-   headers = {
-       "Authorization": f"Bearer {api_key}",
-       "Content-Type": "application/json"
-   }
+st.title("🖼️ 全自动图像区域标注系统")
+st.markdown("---")
 
-   content_list = [
-       {"type": "text", "text": prompt},
-       {"type": "image_url", "image_url": {"url": base_image_data}},
-       {"type": "image_url", "image_url": {"url": mask_data}},
-       {"type": "image_url", "image_url": {"url": ref_image_data}},
-       {"type": "image_url", "image_url": {"url": ref_mask_data}}
-   ]
+# 侧边栏
+with st.sidebar:
+    st.header("📋 使用说明")
+    st.markdown("""
+    **操作步骤：**
+    1. 📤 上传图片
+    2. 🖱️ 在图片上点击标注顶点
+    3. ✅ 点击"确认选区"
+    4. 🎉 数据自动保存！
+    
+    **注意事项：**
+    - 至少需要标注3个点
+    - 红色点为起点
+    - 绿色点为其他顶点
+    """)
+    
+    if st.session_state.polygon_data:
+        st.success("✅ 当前已有数据")
+        if st.button("🗑️ 清除数据"):
+            st.session_state.polygon_data = None
+            st.rerun()
 
-   messages = [{"role": "user", "content": content_list}]
-   data = {"model": model, "messages": messages, "stream": True}
-   url = f"{base_url}/chat/completions"
+# 主内容区
+col1, col2 = st.columns([2, 1])
 
-   try:
-       response = requests.post(url, headers=headers, json=data, timeout=timeout, stream=True)
-       response.raise_for_status()
+with col1:
+    st.subheader("📤 上传图片")
+    uploaded_file = st.file_uploader(
+        "选择图片文件",
+        type=['png', 'jpg', 'jpeg', 'bmp'],
+        help="支持 PNG、JPG、JPEG、BMP 格式"
+    )
 
-       full_content = ""
-       for line in response.iter_lines():
-           if line:
-               line_str = line.decode('utf-8')
-               if line_str.startswith('data: '):
-                   data_str = line_str[6:]
-                   if data_str != '[DONE]':
-                       try:
-                           chunk = json.loads(data_str)
-                           if 'choices' in chunk and len(chunk['choices']) > 0:
-                               delta = chunk['choices'][0].get('delta', {})
-                               if 'content' in delta:
-                                   full_content += delta['content']
-                       except json.JSONDecodeError:
-                           pass
-       return full_content
-   except requests.exceptions.RequestException as e:
-       st.error(f"API请求失败: {e}")
-       raise
+if uploaded_file:
+    # 转换图片为 base64
+    image = Image.open(uploaded_file)
+    st.session_state.image_data = image
+    
+    buffered = io.BytesIO()
+    image.save(buffered, format="PNG")
+    img_b64 = base64.b64encode(buffered.getvalue()).decode()
+    
+    with col1:
+        st.markdown("### 📍 标注区域")
+        st.info("💡 在下方图片上点击绘制多边形，完成后点击'确认选区'，数据会自动保存")
+        
+        # 显示标注器
+        from streamlit.components.v1 import html
+        html_content = create_polygon_selector_auto(img_b64)
+        component_value = html(html_content, height=800)
+        
+        # 检查返回值
+        if component_value:
+            if component_value == 'REFRESH_TRIGGER':
+                st.session_state.check_data = True
+                st.rerun()
+            else:
+                try:
+                    polygon_data = json.loads(component_value)
+                    if isinstance(polygon_data, list) and len(polygon_data) >= 3:
+                        st.session_state.polygon_data = polygon_data
+                        st.success("✅ 数据接收成功！")
+                        st.rerun()
+                except:
+                    pass
+    
+    # 隐藏的数据读取器
+    reader_value = html(create_data_reader(), height=0)
+    if reader_value:
+        try:
+            polygon_data = json.loads(reader_value)
+            if isinstance(polygon_data, list) and len(polygon_data) >= 3:
+                st.session_state.polygon_data = polygon_data
+                st.rerun()
+        except:
+            pass
+    
+    # 检查数据标记
+    if st.session_state.check_data:
+        st.session_state.check_data = False
+        time.sleep(0.5)
+        st.rerun()
+    
+    with col2:
+        st.markdown("### 📊 标注数据")
+        
+        if st.session_state.polygon_data:
+            st.success(f"✅ 已标注 {len(st.session_state.polygon_data)} 个顶点")
+            
+            # 显示数据
+            with st.expander("查看坐标数据", expanded=True):
+                st.json(st.session_state.polygon_data)
+            
+            # 下载按钮
+            json_str = json.dumps(st.session_state.polygon_data, indent=2)
+            st.download_button(
+                label="📥 下载 JSON 文件",
+                data=json_str,
+                file_name=f"polygon_mask_{uploaded_file.name.split('.')[0]}.json",
+                mime="application/json",
+                use_container_width=True
+            )
+            
+            # 可视化预览
+            st.markdown("#### 🔍 坐标预览")
+            for i, point in enumerate(st.session_state.polygon_data):
+                st.text(f"点 {i+1}: ({point['x']:.4f}, {point['y']:.4f})")
+        else:
+            st.info("⏳ 等待标注数据...")
+            st.markdown("标注完成后点击**确认选区**按钮")
 
-# ====================================
-# Streamlit界面
-# ====================================
+else:
+    st.info("👆 请先在左侧上传一张图片开始标注")
 
-st.set_page_config(page_title="筑博AI工作室", page_icon="🎨", layout="wide")
-st.title("🎨 筑博AI工作室 - 局部修改工具")
-
-# 初始化session state
-if 'base_image' not in st.session_state:
-   st.session_state.base_image = None
-if 'ref_image' not in st.session_state:
-   st.session_state.ref_image = None
-if 'base_mask_points' not in st.session_state:
-   st.session_state.base_mask_points = None
-if 'ref_mask_points' not in st.session_state:
-   st.session_state.ref_mask_points = None
-if 'current_page' not in st.session_state:
-   st.session_state.current_page = 'upload'
-
-# 页面路由
-if st.session_state.current_page == 'upload':
-   st.write("上传底图和参考图，使用多边形套索工具选择需要修改和参考的区域")
-   
-   col1, col2 = st.columns(2)
-
-   with col1:
-       st.subheader("📷 底图（需要修改的图片）")
-       base_image_file = st.file_uploader("上传底图", type=["png", "jpg", "jpeg"], key="base")
-       
-       # 当上传新图片时，保存到session_state
-       if base_image_file is not None:
-           st.session_state.base_image = Image.open(base_image_file)
-       
-       # 显示已保存的图片
-       if st.session_state.base_image is not None:
-           st.image(st.session_state.base_image, caption="底图")
-           
-           if st.button("🎯 选择需要修改的区域", key="btn_base", type="primary"):
-               st.session_state.current_page = 'base_mask'
-               st.rerun()
-           
-           if st.session_state.base_mask_points:
-               points = json.loads(st.session_state.base_mask_points)
-               st.success(f"✅ 底图蒙版已设置（{len(points)}个顶点）")
-               if st.button("🔄 重新选择底图区域"):
-                   st.session_state.base_mask_points = None
-                   st.rerun()
-
-   with col2:
-       st.subheader("🎨 参考图")
-       ref_image_file = st.file_uploader("上传参考图", type=["png", "jpg", "jpeg"], key="ref")
-       
-       # 当上传新图片时，保存到session_state
-       if ref_image_file is not None:
-           st.session_state.ref_image = Image.open(ref_image_file)
-       
-       # 显示已保存的图片
-       if st.session_state.ref_image is not None:
-           st.image(st.session_state.ref_image, caption="参考图")
-           
-           if st.button("🎯 选择参考区域", key="btn_ref", type="primary"):
-               st.session_state.current_page = 'ref_mask'
-               st.rerun()
-           
-           if st.session_state.ref_mask_points:
-               points = json.loads(st.session_state.ref_mask_points)
-               st.success(f"✅ 参考图蒙版已设置（{len(points)}个顶点）")
-               if st.button("🔄 重新选择参考区域"):
-                   st.session_state.ref_mask_points = None
-                   st.rerun()
-
-   # 生成部分
-   if st.session_state.base_image and st.session_state.ref_image:
-       st.markdown("---")
-       st.subheader("✍️ 修改说明")
-       custom_prompt = st.text_area(
-           "描述你想要的修改效果",
-           value="请将底图中白色蒙版标记的区域，严格按照参考图中白色蒙版标记区域的风格、材质和细节进行修改。输出图片必须保持底图的原始尺寸和长宽比，只修改蒙版区域内的内容，其他区域完全不变。确保修改后的区域与周围环境自然融合。",
-           height=120
-       )
-
-       if st.button("🚀 生成修改后的图片", type="primary", 
-                   disabled=not (st.session_state.base_mask_points and st.session_state.ref_mask_points)):
-           if not st.session_state.base_mask_points or not st.session_state.ref_mask_points:
-               st.error("❌ 请为两张图片都设置蒙版区域")
-           else:
-               with st.spinner("⏳ 正在生成图片，请稍候..."):
-                   try:
-                       # 创建底图蒙版
-                       base_mask = create_mask_from_points(
-                           st.session_state.base_image.size, 
-                           st.session_state.base_mask_points
-                       )
-                       
-                       # 创建参考图蒙版
-                       ref_mask = create_mask_from_points(
-                           st.session_state.ref_image.size, 
-                           st.session_state.ref_mask_points
-                       )
-                       
-                       if base_mask and ref_mask:
-                           # 将参考图调整为与底图相同的尺寸
-                           ref_image_resized, ref_mask_resized = resize_reference_to_match_base(
-                               st.session_state.ref_image,
-                               ref_mask,
-                               st.session_state.base_image.size
-                           )
-                           
-                           # 转换为base64
-                           base_image_data = image_to_base64(st.session_state.base_image)
-                           base_mask_data = image_to_base64(base_mask)
-                           ref_image_data = image_to_base64(ref_image_resized)
-                           ref_mask_data = image_to_base64(ref_mask_resized)
-                           
-                           # 显示预处理信息
-                           with st.expander("🔍 查看预处理信息"):
-                               col_a, col_b = st.columns(2)
-                               with col_a:
-                                   st.write(f"**底图尺寸：** {st.session_state.base_image.size}")
-                                   st.write(f"**原参考图尺寸：** {st.session_state.ref_image.size}")
-                               with col_b:
-                                   st.write(f"**调整后参考图尺寸：** {ref_image_resized.size}")
-                                   st.success("✅ 参考图已调整为与底图相同尺寸")
-                           
-                           result_content = call_api_with_mask(
-                               api_key=API_KEY, base_url=BASE_URL, model=MODEL_NAME,
-                               prompt=custom_prompt, base_image_data=base_image_data,
-                               mask_data=base_mask_data, ref_image_data=ref_image_data,
-                               ref_mask_data=ref_mask_data
-                           )
-                           
-                           if "![image](" in result_content:
-                               start_idx = result_content.index("![image](") + len("![image](")
-                               end_idx = result_content.index(")", start_idx)
-                               image_url = result_content[start_idx:end_idx]
-                               
-                               st.success("✅ 图片生成成功！")
-                               st.image(image_url, caption="修改后的图片")
-                               st.markdown(f"[📥 下载图片]({image_url})")
-                           else:
-                               st.warning("⚠️ 未能从响应中提取图片")
-                               st.write("API响应:", result_content)
-                   except Exception as e:
-                       st.error(f"❌ 生成失败: {e}")
-
-elif st.session_state.current_page == 'base_mask':
-   st.subheader("🖱️ 底图蒙版选择")
-   
-   if st.session_state.base_image:
-       base_image_b64 = image_to_base64(st.session_state.base_image)
-       
-       # 接收来自组件的数据
-       mask_data = create_polygon_selector(base_image_b64)
-       
-       # 如果收到数据，自动保存并返回
-       if mask_data and mask_data.strip():
-           try:
-               points = json.loads(mask_data)
-               if len(points) >= 3:
-                   st.session_state.base_mask_points = mask_data
-                   st.success(f"✅ 已自动保存{len(points)}个顶点！")
-                   st.info("🔄 正在返回主页面...")
-                   time.sleep(1)
-                   st.session_state.current_page = 'upload'
-                   st.rerun()
-           except json.JSONDecodeError:
-               pass
-       
-       st.markdown("---")
-       st.info("⬆️ 在画布中点击添加顶点（至少3个点），然后点击'✅ 确认蒙版'按钮，数据将自动保存")
-       
-       if st.button("🔙 返回主页", use_container_width=True):
-           st.session_state.current_page = 'upload'
-           st.rerun()
-
-elif st.session_state.current_page == 'ref_mask':
-   st.subheader("🖱️ 参考图蒙版选择")
-   
-   if st.session_state.ref_image:
-       ref_image_b64 = image_to_base64(st.session_state.ref_image)
-       
-       # 接收来自组件的数据
-       mask_data = create_polygon_selector(ref_image_b64)
-       
-       # 如果收到数据，自动保存并返回
-       if mask_data and mask_data.strip():
-           try:
-               points = json.loads(mask_data)
-               if len(points) >= 3:
-                   st.session_state.ref_mask_points = mask_data
-                   st.success(f"✅ 已自动保存{len(points)}个顶点！")
-                   st.info("🔄 正在返回主页面...")
-                   time.sleep(1)
-                   st.session_state.current_page = 'upload'
-                   st.rerun()
-           except json.JSONDecodeError:
-               pass
-       
-       st.markdown("---")
-       st.info("⬆️ 在画布中点击添加顶点（至少3个点），然后点击'✅ 确认蒙版'按钮，数据将自动保存")
-       
-       if st.button("🔙 返回主页", use_container_width=True):
-           st.session_state.current_page = 'upload'
-           st.rerun()
-
-# 使用说明
-with st.expander("📖 使用说明"):
-   st.markdown("""
-   ### 操作步骤：
-   
-   1. **上传底图和参考图** - 图片会自动保存，切换页面后仍会显示
-   2. **点击选择需要修改的区域** - 进入底图蒙版选择页面
-      - 在图片上点击添加顶点（至少3个点）
-      - 点击"✅ 确认蒙版"按钮
-      - 数据会自动保存并返回主页面 ✨
-   3. **点击选择参考区域** - 重复上述步骤
-   4. **填写修改说明并生成图片**
-   
-
-   """)
+# 页脚
+st.markdown("---")
+st.markdown(
+    "<div style='text-align: center; color: #666;'>"
+    "🎨 全自动图像标注系统 | 基于 Streamlit 框架"
+    "</div>",
+    unsafe_allow_html=True
+)
