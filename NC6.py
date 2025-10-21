@@ -29,33 +29,33 @@ def image_to_base64(image):
     return "data:image/png;base64," + img_str
 
 def create_data_reader():
-    """【新增】读取 localStorage 中保存的数据"""
+    """读取 localStorage 中保存的数据"""
     reader_html = """
     <script>
-        try {
-            const data = localStorage.getItem('streamlit_polygon_data');
-            const needRefresh = localStorage.getItem('streamlit_need_refresh');
-            
-            if (data && needRefresh === 'true') {
-                // 发送数据给 Streamlit
-                window.parent.postMessage({
-                    type: 'streamlit:setComponentValue',
-                    value: data
-                }, '*');
+        (function() {
+            try {
+                const data = localStorage.getItem('streamlit_polygon_data');
                 
-                // 清除标记和数据
-                localStorage.removeItem('streamlit_need_refresh');
-                localStorage.removeItem('streamlit_polygon_data');
+                if (data) {
+                    // 发送数据给 Streamlit
+                    window.parent.postMessage({
+                        type: 'streamlit:setComponentValue',
+                        value: data
+                    }, '*');
+                    
+                    // 清除数据
+                    localStorage.removeItem('streamlit_polygon_data');
+                }
+            } catch(e) {
+                console.error('Reader error:', e);
             }
-        } catch(e) {
-            console.error('Reader error:', e);
-        }
+        })();
     </script>
     """
     return reader_html
 
 def create_polygon_selector(image_base64, height=750):
-    """创建多边形选择器组件 - 自动保存版本"""
+    """创建多边形选择器组件"""
     html_code = f"""
     <!DOCTYPE html>
     <html>
@@ -145,6 +145,7 @@ def create_polygon_selector(image_base64, height=750):
                 color: #155724;
                 border-radius: 4px;
                 font-weight: bold;
+                display: none;
             }}
         </style>
     </head>
@@ -155,9 +156,11 @@ def create_polygon_selector(image_base64, height=750):
             <div class="controls">
                 <button class="btn-secondary" onclick="clearPoints()">🗑️ 清除所有点</button>
                 <button class="btn-info" onclick="undoPoint()">↩️ 撤销上一点</button>
-                <button class="btn-primary" id="confirmBtn" onclick="confirmMask()">✅ 确认蒙版（自动保存）</button>
+                <button class="btn-primary" id="confirmBtn" onclick="confirmMask()">✅ 确认蒙版</button>
             </div>
-            <div id="statusMsg" style="display:none;"></div>
+            <div class="success-msg" id="successMsg">
+                ✅ 蒙版数据已保存！请点击下方的"提交蒙版"按钮返回
+            </div>
             <div class="info">
                 <strong>📌 使用说明：</strong>点击图片添加多边形顶点（至少3个点），红色点为起点，绿色点为其他顶点
             </div>
@@ -167,7 +170,7 @@ def create_polygon_selector(image_base64, height=750):
             const canvas = document.getElementById('canvas');
             const ctx = canvas.getContext('2d');
             const pointCountDiv = document.getElementById('pointCount');
-            const statusMsg = document.getElementById('statusMsg');
+            const successMsg = document.getElementById('successMsg');
             const confirmBtn = document.getElementById('confirmBtn');
             let points = [];
             let img = new Image();
@@ -246,7 +249,8 @@ def create_polygon_selector(image_base64, height=750):
                 points = [];
                 updatePointCount();
                 redraw();
-                statusMsg.style.display = 'none';
+                successMsg.style.display = 'none';
+                confirmBtn.disabled = false;
             }}
             
             function undoPoint() {{
@@ -277,20 +281,12 @@ def create_polygon_selector(image_base64, height=750):
                 // 保存到 localStorage
                 try {{
                     localStorage.setItem('streamlit_polygon_data', jsonString);
-                    localStorage.setItem('streamlit_need_refresh', 'true');
                     
                     // 显示成功消息
-                    statusMsg.textContent = '✓ 数据已保存！页面即将刷新...';
-                    statusMsg.className = 'success-msg';
-                    statusMsg.style.display = 'block';
+                    successMsg.style.display = 'block';
                     
-                    // 通知 Streamlit
-                    setTimeout(() => {{
-                        window.parent.postMessage({{
-                            type: 'streamlit:setComponentValue',
-                            value: 'REFRESH_TRIGGER'
-                        }}, '*');
-                    }}, 800);
+                    // 滚动到底部
+                    window.scrollTo(0, document.body.scrollHeight);
                 }} catch(e) {{
                     alert('保存失败: ' + e);
                     confirmBtn.disabled = false;
@@ -526,33 +522,38 @@ elif st.session_state.current_page == 'base_mask':
     if st.session_state.base_image:
         base_image_b64 = image_to_base64(st.session_state.base_image)
         
-        # 【关键修改】显示标注器
-        component_value = components.html(create_polygon_selector(base_image_b64), height=850)
-        
-        # 【新增】立即添加隐藏的数据读取器
-        reader_value = components.html(create_data_reader(), height=0)
-        
-        # 【新增】处理返回的数据
-        if reader_value:
-            try:
-                polygon_data = json.loads(reader_value)
-                if isinstance(polygon_data, list) and len(polygon_data) >= 3:
-                    st.session_state.base_mask_points = json.dumps(polygon_data)
-                    st.success(f"✅ 自动接收了 {len(polygon_data)} 个顶点！")
-                    st.session_state.current_page = 'upload'
-                    st.rerun()
-            except:
-                pass
-        
-        # 处理刷新触发
-        if component_value == 'REFRESH_TRIGGER':
-            st.rerun()
+        # 显示标注器
+        components.html(create_polygon_selector(base_image_b64), height=900)
         
         st.markdown("---")
         
-        if st.button("🔙 返回", use_container_width=True):
-            st.session_state.current_page = 'upload'
-            st.rerun()
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            # 【新增】提交蒙版按钮 - 会触发数据读取
+            if st.button("✅ 提交蒙版", type="primary", use_container_width=True, key="submit_base"):
+                # 触发数据读取
+                reader_value = components.html(create_data_reader(), height=0)
+                
+                if reader_value:
+                    try:
+                        polygon_data = json.loads(reader_value)
+                        if isinstance(polygon_data, list) and len(polygon_data) >= 3:
+                            st.session_state.base_mask_points = json.dumps(polygon_data)
+                            st.success(f"✅ 已保存 {len(polygon_data)} 个顶点！")
+                            st.session_state.current_page = 'upload'
+                            st.rerun()
+                        else:
+                            st.error("❌ 数据格式错误或顶点数不足")
+                    except:
+                        st.error("❌ 请先点击画布中的'确认蒙版'按钮")
+                else:
+                    st.warning("⚠️ 请先点击画布中的'确认蒙版'按钮")
+        
+        with col2:
+            if st.button("🔙 取消", use_container_width=True):
+                st.session_state.current_page = 'upload'
+                st.rerun()
 
 elif st.session_state.current_page == 'ref_mask':
     st.subheader("🖱️ 参考图蒙版选择")
@@ -560,52 +561,56 @@ elif st.session_state.current_page == 'ref_mask':
     if st.session_state.ref_image:
         ref_image_b64 = image_to_base64(st.session_state.ref_image)
         
-        # 【关键修改】显示标注器
-        component_value = components.html(create_polygon_selector(ref_image_b64), height=850)
-        
-        # 【新增】立即添加隐藏的数据读取器
-        reader_value = components.html(create_data_reader(), height=0)
-        
-        # 【新增】处理返回的数据
-        if reader_value:
-            try:
-                polygon_data = json.loads(reader_value)
-                if isinstance(polygon_data, list) and len(polygon_data) >= 3:
-                    st.session_state.ref_mask_points = json.dumps(polygon_data)
-                    st.success(f"✅ 自动接收了 {len(polygon_data)} 个顶点！")
-                    st.session_state.current_page = 'upload'
-                    st.rerun()
-            except:
-                pass
-        
-        # 处理刷新触发
-        if component_value == 'REFRESH_TRIGGER':
-            st.rerun()
+        # 显示标注器
+        components.html(create_polygon_selector(ref_image_b64), height=900)
         
         st.markdown("---")
         
-        if st.button("🔙 返回", use_container_width=True):
-            st.session_state.current_page = 'upload'
-            st.rerun()
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            # 【新增】提交蒙版按钮
+            if st.button("✅ 提交蒙版", type="primary", use_container_width=True, key="submit_ref"):
+                # 触发数据读取
+                reader_value = components.html(create_data_reader(), height=0)
+                
+                if reader_value:
+                    try:
+                        polygon_data = json.loads(reader_value)
+                        if isinstance(polygon_data, list) and len(polygon_data) >= 3:
+                            st.session_state.ref_mask_points = json.dumps(polygon_data)
+                            st.success(f"✅ 已保存 {len(polygon_data)} 个顶点！")
+                            st.session_state.current_page = 'upload'
+                            st.rerun()
+                        else:
+                            st.error("❌ 数据格式错误或顶点数不足")
+                    except:
+                        st.error("❌ 请先点击画布中的'确认蒙版'按钮")
+                else:
+                    st.warning("⚠️ 请先点击画布中的'确认蒙版'按钮")
+        
+        with col2:
+            if st.button("🔙 取消", use_container_width=True):
+                st.session_state.current_page = 'upload'
+                st.rerun()
 
 # 使用说明
 with st.expander("📖 使用说明"):
     st.markdown("""
     ### 操作步骤：
     
-    1. **上传底图和参考图** - 图片会自动保存，切换页面后仍会显示
-    2. **点击选择需要修改的区域** - 进入底图蒙版选择页面
+    1. **上传底图和参考图** - 图片会自动保存
+    2. **点击选择需要修改的区域** - 进入蒙版选择页面
        - 在图片上点击添加顶点（至少3个点）
-       - 点击"✅ 确认蒙版（自动保存）"按钮
-       - **数据会自动保存并返回！无需复制粘贴！**
+       - 点击画布中的"✅ 确认蒙版"按钮
+       - 看到绿色提示"数据已保存"后
+       - 点击下方的"✅ 提交蒙版"按钮返回
     3. **点击选择参考区域** - 重复上述步骤
     4. **填写修改说明并生成图片**
     
-    ### ⭐ 新增特性：
-    - ✅ **完全自动化！点击确认后自动保存并返回！**
-    - ✅ 无需手动复制粘贴JSON数据
-    - ✅ 输出图片严格保持底图的长宽比和尺寸
-    - ✅ 参考图会自动调整为与底图相同尺寸
-    - ✅ 图片持久保存，切换页面不丢失
+    ### ⭐ 特性：
+    - ✅ 两步确认机制，确保数据安全保存
+    - ✅ 清晰的操作提示
+    - ✅ 输出图片保持底图的长宽比和尺寸
     - ✅ 多边形自由选择，支持任意形状
     """)
