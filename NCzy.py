@@ -10,7 +10,7 @@ from datetime import datetime
 # ====================================
 API_KEY = "sk-wBuUIEArjm2BoTQBCQgzf2bhzksx87xg3pQ3cPsvccmULhAk"
 BASE_URL = "https://api.sydney-ai.com/v1"
-MODEL_NAME = "gemini-2.5-flash-image"
+MODEL_NAME = "gemini-2.5-flash-image-vip"
 
 # ====================================
 # 辅助函数
