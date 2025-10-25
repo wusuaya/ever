@@ -4,8 +4,6 @@ import re
 import requests
 import json
 from datetime import datetime
-from openai import OpenAI
-import os
 
 # ====================================
 # 配置
