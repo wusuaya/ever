@@ -10,7 +10,7 @@ from datetime import datetime
 # ====================================
 API_KEY = "sk-wBuUIEArjm2BoTQBCQgzf2bhzksx87xg3pQ3cPsvccmULhAk"
 BASE_URL = "https://api.sydney-ai.com/v1"
-MODEL_NAME = "gemini-2.5-flash-image-vip"
+MODEL_NAME = "gemini-2.5-flash-image-vip"  # 已更新模型名称
 
 # ====================================
 # 辅助函数
@@ -126,6 +126,30 @@ def build_api_messages():
 
 st.set_page_config(page_title="AI 图片对话助手", page_icon="🤖", layout="wide")
 
+# 自定义CSS - 缩小图片预览
+st.markdown("""
+<style>
+    /* 缩小上传图片预览的尺寸 */
+    .thumbnail-container img {
+        max-width: 80px !important;
+        max-height: 80px !important;
+        object-fit: cover;
+        border-radius: 8px;
+    }
+    
+    /* 调整文件上传器样式 */
+    [data-testid="stFileUploader"] {
+        padding: 8px 0px;
+    }
+    
+    /* 让输入区域固定在底部 */
+    .stChatFloatingInputContainer {
+        bottom: 0;
+        position: sticky;
+    }
+</style>
+""", unsafe_allow_html=True)
+
 st.title("🤖 AI 图片对话助手")
 st.markdown("支持文字和图片的多模态对话，保留完整上下文")
 
@@ -147,51 +171,60 @@ with st.sidebar:
     
     st.divider()
     st.caption(f"💬 当前对话轮数: {len(st.session_state.messages)}")
+    st.caption(f"🤖 模型: {MODEL_NAME}")
 
 # 显示对话历史
-chat_container = st.container()
+for message in st.session_state.messages:
+    with st.chat_message(message["role"]):
+        # 显示文本
+        if message.get("text"):
+            st.markdown(message["text"])
+        
+        # 显示用户上传的图片（正常大小）
+        if message.get("images") and message["role"] == "user":
+            cols = st.columns(min(len(message["images"]), 3))
+            for idx, img_data in enumerate(message["images"]):
+                with cols[idx % 3]:
+                    st.image(img_data, use_column_width=True)
+        
+        # 显示AI返回的图片
+        if message.get("response_images") and message["role"] == "assistant":
+            for img_type, img_data in message["response_images"]:
+                if img_type == 'base64':
+                    try:
+                        st.image(base64.b64decode(img_data), use_column_width=True)
+                    except:
+                        pass
+                elif img_type == 'url':
+                    st.image(img_data, use_column_width=True)
 
-with chat_container:
-    for message in st.session_state.messages:
-        with st.chat_message(message["role"]):
-            # 显示文本
-            if message.get("text"):
-                st.markdown(message["text"])
-            
-            # 显示用户上传的图片
-            if message.get("images") and message["role"] == "user":
-                cols = st.columns(min(len(message["images"]), 3))
-                for idx, img_data in enumerate(message["images"]):
-                    with cols[idx % 3]:
-                        st.image(img_data, use_column_width=True)
-            
-            # 显示AI返回的图片
-            if message.get("response_images") and message["role"] == "assistant":
-                for img_type, img_data in message["response_images"]:
-                    if img_type == 'base64':
-                        try:
-                            st.image(base64.b64decode(img_data), use_column_width=True)
-                        except:
-                            pass
-                    elif img_type == 'url':
-                        st.image(img_data, use_column_width=True)
+# 创建底部容器（包含图片上传和输入框）
+st.markdown("---")
 
-# 图片上传区域（在输入框上方）
-uploaded_files = st.file_uploader(
-    "📎 上传图片（可选）", 
-    type=['png', 'jpg', 'jpeg', 'gif'],
-    accept_multiple_files=True,
-    key="file_uploader",
-    label_visibility="collapsed"
-)
+# 图片上传区域（紧贴输入框上方）
+col1, col2 = st.columns([4, 1])
 
-# 显示已选择的图片预览
+with col1:
+    uploaded_files = st.file_uploader(
+        "📎 上传图片", 
+        type=['png', 'jpg', 'jpeg', 'gif'],
+        accept_multiple_files=True,
+        key="file_uploader",
+        label_visibility="visible"
+    )
+
+with col2:
+    if uploaded_files:
+        st.caption(f"✅ {len(uploaded_files)} 张")
+
+# 显示缩略图预览（小尺寸）
 if uploaded_files:
-    with st.expander(f"📷 已选择 {len(uploaded_files)} 张图片", expanded=True):
-        cols = st.columns(min(len(uploaded_files), 4))
-        for idx, file in enumerate(uploaded_files):
-            with cols[idx % 4]:
-                st.image(file, use_column_width=True)
+    st.markdown('<div class="thumbnail-container">', unsafe_allow_html=True)
+    cols = st.columns(min(len(uploaded_files), 8))
+    for idx, file in enumerate(uploaded_files):
+        with cols[idx % 8]:
+            st.image(file, width=80)
+    st.markdown('</div>', unsafe_allow_html=True)
 
 # 用户输入
 prompt = st.chat_input("💬 输入你的问题...")
@@ -272,5 +305,4 @@ if prompt:
     st.rerun()
 
 # 页脚信息
-st.divider()
 st.caption("💡 提示: 可以上传图片配合文字提问，AI会记住之前的所有对话内容")
