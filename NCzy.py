@@ -10,7 +10,7 @@ from datetime import datetime
 # ====================================
 API_KEY = "sk-wBuUIEArjm2BoTQBCQgzf2bhzksx87xg3pQ3cPsvccmULhAk"
 BASE_URL = "https://api.sydney-ai.com/v1"
-MODEL_NAME = "gemini-2.5-flash-image-vip"
+MODEL_NAME = "gemini-2.5-flash-image"
 
 # ====================================
 # 辅助函数
@@ -47,7 +47,7 @@ def extract_images_from_response(content):
     return images
 
 def call_api(messages, use_stream=True):
-    """调用API"""
+    """调用API - 支持上下文"""
     headers = {
         "Authorization": f"Bearer {API_KEY}",
         "Content-Type": "application/json"
@@ -90,6 +90,36 @@ def call_api(messages, use_stream=True):
         st.error(f"API调用失败: {str(e)}")
         return None
 
+def build_api_messages():
+    """构建包含完整上下文的API消息列表"""
+    api_messages = []
+    
+    for msg in st.session_state.messages:
+        if msg["role"] == "user":
+            # 构建用户消息
+            content_list = [{"type": "text", "text": msg["text"]}]
+            
+            # 添加图片
+            if msg.get("image_base64"):
+                for img_b64 in msg["image_base64"]:
+                    content_list.append({
+                        "type": "image_url",
+                        "image_url": {"url": img_b64}
+                    })
+            
+            api_messages.append({
+                "role": "user",
+                "content": content_list
+            })
+        else:
+            # 助手消息
+            api_messages.append({
+                "role": "assistant",
+                "content": msg["text"]
+            })
+    
+    return api_messages
+
 # ====================================
 # Streamlit 应用
 # ====================================
@@ -97,60 +127,74 @@ def call_api(messages, use_stream=True):
 st.set_page_config(page_title="AI 图片对话助手", page_icon="🤖", layout="wide")
 
 st.title("🤖 AI 图片对话助手")
-st.markdown("支持文字和图片的多模态对话")
+st.markdown("支持文字和图片的多模态对话，保留完整上下文")
 
 # 初始化session state
 if "messages" not in st.session_state:
     st.session_state.messages = []
 
-# 侧边栏 - 上传图片
+if "temp_images" not in st.session_state:
+    st.session_state.temp_images = []
+
+# 侧边栏 - 只保留清空按钮
 with st.sidebar:
-    st.header("📤 上传图片")
-    uploaded_files = st.file_uploader(
-        "选择图片文件", 
-        type=['png', 'jpg', 'jpeg', 'gif'],
-        accept_multiple_files=True,
-        key="file_uploader"
-    )
+    st.header("⚙️ 设置")
     
-    if uploaded_files:
-        st.success(f"已选择 {len(uploaded_files)} 张图片")
-        for idx, file in enumerate(uploaded_files):
-            st.image(file, caption=f"图片 {idx+1}", use_column_width=True)
+    if st.button("🗑️ 清空对话历史", use_container_width=True):
+        st.session_state.messages = []
+        st.session_state.temp_images = []
+        st.rerun()
     
     st.divider()
-    
-    if st.button("🗑️ 清空对话历史"):
-        st.session_state.messages = []
-        st.rerun()
+    st.caption(f"💬 当前对话轮数: {len(st.session_state.messages)}")
 
 # 显示对话历史
-for message in st.session_state.messages:
-    with st.chat_message(message["role"]):
-        # 显示文本
-        if message.get("text"):
-            st.markdown(message["text"])
-        
-        # 显示用户上传的图片
-        if message.get("images") and message["role"] == "user":
-            cols = st.columns(min(len(message["images"]), 3))
-            for idx, img_data in enumerate(message["images"]):
-                with cols[idx % 3]:
-                    st.image(img_data, use_column_width=True)
-        
-        # 显示AI返回的图片
-        if message.get("response_images") and message["role"] == "assistant":
-            for img_type, img_data in message["response_images"]:
-                if img_type == 'base64':
-                    try:
-                        st.image(base64.b64decode(img_data), use_column_width=True)
-                    except:
-                        pass
-                elif img_type == 'url':
-                    st.image(img_data, use_column_width=True)
+chat_container = st.container()
+
+with chat_container:
+    for message in st.session_state.messages:
+        with st.chat_message(message["role"]):
+            # 显示文本
+            if message.get("text"):
+                st.markdown(message["text"])
+            
+            # 显示用户上传的图片
+            if message.get("images") and message["role"] == "user":
+                cols = st.columns(min(len(message["images"]), 3))
+                for idx, img_data in enumerate(message["images"]):
+                    with cols[idx % 3]:
+                        st.image(img_data, use_column_width=True)
+            
+            # 显示AI返回的图片
+            if message.get("response_images") and message["role"] == "assistant":
+                for img_type, img_data in message["response_images"]:
+                    if img_type == 'base64':
+                        try:
+                            st.image(base64.b64decode(img_data), use_column_width=True)
+                        except:
+                            pass
+                    elif img_type == 'url':
+                        st.image(img_data, use_column_width=True)
+
+# 图片上传区域（在输入框上方）
+uploaded_files = st.file_uploader(
+    "📎 上传图片（可选）", 
+    type=['png', 'jpg', 'jpeg', 'gif'],
+    accept_multiple_files=True,
+    key="file_uploader",
+    label_visibility="collapsed"
+)
+
+# 显示已选择的图片预览
+if uploaded_files:
+    with st.expander(f"📷 已选择 {len(uploaded_files)} 张图片", expanded=True):
+        cols = st.columns(min(len(uploaded_files), 4))
+        for idx, file in enumerate(uploaded_files):
+            with cols[idx % 4]:
+                st.image(file, use_column_width=True)
 
 # 用户输入
-prompt = st.chat_input("输入你的问题...")
+prompt = st.chat_input("💬 输入你的问题...")
 
 if prompt:
     # 构建消息内容
@@ -158,20 +202,20 @@ if prompt:
     
     # 处理上传的图片
     uploaded_images = []
+    image_base64_list = []
+    
     if uploaded_files:
         for uploaded_file in uploaded_files:
             image_data = encode_image_to_base64(uploaded_file)
-            content_list.append({
-                "type": "image_url",
-                "image_url": {"url": image_data}
-            })
+            image_base64_list.append(image_data)
             uploaded_images.append(uploaded_file.getvalue())
     
     # 添加用户消息到历史
     st.session_state.messages.append({
         "role": "user",
         "text": prompt,
-        "images": uploaded_images if uploaded_images else None
+        "images": uploaded_images if uploaded_images else None,
+        "image_base64": image_base64_list if image_base64_list else None
     })
     
     # 显示用户消息
@@ -183,11 +227,11 @@ if prompt:
                 with cols[idx % 3]:
                     st.image(img_data, use_column_width=True)
     
-    # 调用API
+    # 调用API（包含完整上下文）
     with st.chat_message("assistant"):
         with st.spinner("AI正在思考..."):
-            # 构建API消息
-            api_messages = [{"role": "user", "content": content_list}]
+            # 构建包含上下文的API消息
+            api_messages = build_api_messages()
             
             # 调用API
             response_content = call_api(api_messages)
@@ -223,7 +267,10 @@ if prompt:
                     "text": clean_text if clean_text else "已生成图片",
                     "response_images": response_images if response_images else None
                 })
+    
+    # 重新运行以刷新页面
+    st.rerun()
 
 # 页脚信息
 st.divider()
-st.caption(f"💡 提示: 可以上传多张图片并输入问题，AI将基于图片内容进行回答或生成新图片")
+st.caption("💡 提示: 可以上传图片配合文字提问，AI会记住之前的所有对话内容")
