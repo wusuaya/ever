@@ -6,3 +6,5 @@ plotly
 mplfinance
 httpx
 requests
+javascript
+streamlit-javascript
