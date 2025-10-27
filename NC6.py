@@ -8,13 +8,6 @@ from PIL import Image, ImageDraw
 import io
 import streamlit.components.v1 as components
 
-# 安装: pip install streamlit-javascript
-try:
-    from streamlit_js_eval import streamlit_js_eval, get_page_location
-except ImportError:
-    st.error("❌ 请先安装依赖: pip install streamlit-javascript")
-    st.stop()
-
 # ====================================
 # 用户配置变量
 # ====================================
@@ -35,8 +28,8 @@ def image_to_base64(image):
     img_str = base64.b64encode(buffered.getvalue()).decode("utf-8")
     return "data:image/png;base64," + img_str
 
-def create_polygon_selector_with_clipboard(image_base64, height=750):
-    """创建支持自动复制的多边形选择器"""
+def create_polygon_selector(image_base64, height=750):
+    """创建多边形选择器组件"""
     html_code = f"""
     <!DOCTYPE html>
     <html>
@@ -114,7 +107,20 @@ def create_polygon_selector_with_clipboard(image_base64, height=750):
                 color: #856404;
                 font-weight: bold;
             }}
-            .copy-success {{
+            #jsonOutput {{
+                margin-top: 15px;
+                padding: 15px;
+                background: #f5f5f5;
+                border: 1px solid #ddd;
+                border-radius: 4px;
+                font-family: monospace;
+                font-size: 12px;
+                word-wrap: break-word;
+                max-height: 150px;
+                overflow-y: auto;
+                display: none;
+            }}
+            .success-msg {{
                 margin-top: 10px;
                 padding: 12px;
                 background: #d4edda;
@@ -122,23 +128,6 @@ def create_polygon_selector_with_clipboard(image_base64, height=750):
                 color: #155724;
                 border-radius: 4px;
                 display: none;
-                animation: slideDown 0.3s ease-out;
-            }}
-            @keyframes slideDown {{
-                from {{
-                    opacity: 0;
-                    transform: translateY(-20px);
-                }}
-                to {{
-                    opacity: 1;
-                    transform: translateY(0);
-                }}
-            }}
-            .highlight {{
-                background: #ffc107;
-                padding: 2px 6px;
-                border-radius: 3px;
-                font-weight: bold;
             }}
         </style>
     </head>
@@ -149,17 +138,14 @@ def create_polygon_selector_with_clipboard(image_base64, height=750):
             <div class="controls">
                 <button class="btn-secondary" onclick="clearPoints()">🗑️ 清除所有点</button>
                 <button class="btn-info" onclick="undoPoint()">↩️ 撤销上一点</button>
-                <button class="btn-primary" onclick="confirmMask()">✅ 确认蒙版并复制</button>
+                <button class="btn-primary" onclick="confirmMask()">✅ 确认蒙版</button>
             </div>
-            <div class="copy-success" id="copySuccess">
-                ✅ <span class="highlight">数据已复制到剪贴板！</span><br>
-                请在下方点击 <span class="highlight">"⚡ 一键保存"</span> 按钮完成保存
+            <div class="success-msg" id="successMsg">
+                ✅ 蒙版数据已准备好！请复制下方JSON数据
             </div>
+            <div id="jsonOutput"></div>
             <div class="info">
-                <strong>📌 操作流程：</strong><br>
-                1️⃣ 点击图片添加多边形顶点（至少3个点）<br>
-                2️⃣ 点击"确认蒙版并复制"按钮<br>
-                3️⃣ 向下滚动，点击"⚡ 一键保存"按钮
+                <strong>📌 使用说明：</strong>点击图片添加多边形顶点（至少3个点），红色点为起点，绿色点为其他顶点
             </div>
         </div>
 
@@ -167,7 +153,8 @@ def create_polygon_selector_with_clipboard(image_base64, height=750):
             const canvas = document.getElementById('canvas');
             const ctx = canvas.getContext('2d');
             const pointCountDiv = document.getElementById('pointCount');
-            const copySuccess = document.getElementById('copySuccess');
+            const jsonOutput = document.getElementById('jsonOutput');
+            const successMsg = document.getElementById('successMsg');
             let points = [];
             let img = new Image();
             let isImageLoaded = false;
@@ -245,7 +232,8 @@ def create_polygon_selector_with_clipboard(image_base64, height=750):
                 points = [];
                 updatePointCount();
                 redraw();
-                copySuccess.style.display = 'none';
+                jsonOutput.style.display = 'none';
+                successMsg.style.display = 'none';
             }}
             
             function undoPoint() {{
@@ -256,35 +244,27 @@ def create_polygon_selector_with_clipboard(image_base64, height=750):
                 }}
             }}
             
-            async function confirmMask() {{
+            function confirmMask() {{
                 if (points.length < 3) {{
                     alert('❌ 请至少选择3个点来形成一个区域！');
                     return;
                 }}
                 
+                // 转换为原始图片尺寸的坐标
                 const scale = parseFloat(canvas.dataset.scale);
                 const originalPoints = points.map(p => ({{
                     x: Math.round(p.x / scale),
                     y: Math.round(p.y / scale)
                 }}));
                 
+                // 显示JSON数据
                 const jsonString = JSON.stringify(originalPoints);
+                jsonOutput.textContent = jsonString;
+                jsonOutput.style.display = 'block';
+                successMsg.style.display = 'block';
                 
-                try {{
-                    await navigator.clipboard.writeText(jsonString);
-                    copySuccess.style.display = 'block';
-                    
-                    // 自动滚动到页面底部，让用户看到"一键保存"按钮
-                    setTimeout(() => {{
-                        window.scrollTo({{
-                            top: document.body.scrollHeight,
-                            behavior: 'smooth'
-                        }});
-                    }}, 300);
-                    
-                }} catch (err) {{
-                    alert('⚠️ 自动复制失败: ' + err.message + '\\n\\n请手动复制数据: ' + jsonString);
-                }}
+                // 滚动到底部
+                window.scrollTo(0, document.body.scrollHeight);
             }}
         </script>
     </body>
@@ -292,25 +272,6 @@ def create_polygon_selector_with_clipboard(image_base64, height=750):
     """
     
     components.html(html_code, height=height, scrolling=True)
-
-def read_clipboard_and_save(page_type):
-    """从剪贴板读取数据并保存"""
-    # 创建一个用于读取剪贴板的JavaScript代码
-    js_code = """
-    (async function() {
-        try {
-            const text = await navigator.clipboard.readText();
-            return text;
-        } catch (err) {
-            return "ERROR:" + err.message;
-        }
-    })();
-    """
-    
-    # 使用streamlit_js_eval执行JS并获取返回值
-    clipboard_data = streamlit_js_eval(js_code, key=f"clipboard_{page_type}_{st.session_state.get('clipboard_counter', 0)}")
-    
-    return clipboard_data
 
 def create_mask_from_points(image_size, points_json):
     """根据多边形顶点创建蒙版"""
@@ -332,10 +293,25 @@ def create_mask_from_points(image_size, points_json):
         st.error(f"创建蒙版失败: {e}")
         return None
 
+def extract_masked_region(image, mask):
+    """从图片中提取蒙版区域并裁剪到最小边界框"""
+    # 获取蒙版的边界框
+    bbox = mask.getbbox()
+    if not bbox:
+        return None
+    
+    # 裁剪图片和蒙版到边界框
+    cropped_image = image.crop(bbox)
+    cropped_mask = mask.crop(bbox)
+    
+    return cropped_image, cropped_mask
+
 def resize_reference_to_match_base(ref_image, ref_mask, base_size):
-    """将参考图调整为与底图相同的尺寸"""
+    """将参考图调整为与底图相同的尺寸，保持蒙版区域不变形"""
+    # 直接调整到底图尺寸
     resized_ref = ref_image.resize(base_size, Image.Resampling.LANCZOS)
     resized_mask = ref_mask.resize(base_size, Image.Resampling.LANCZOS)
+    
     return resized_ref, resized_mask
 
 def call_api_with_mask(api_key, base_url, model, prompt, base_image_data, mask_data, ref_image_data, ref_mask_data, timeout=API_TIMEOUT):
@@ -399,8 +375,8 @@ if 'ref_mask_points' not in st.session_state:
     st.session_state.ref_mask_points = None
 if 'current_page' not in st.session_state:
     st.session_state.current_page = 'upload'
-if 'clipboard_counter' not in st.session_state:
-    st.session_state.clipboard_counter = 0
+if 'temp_mask_input' not in st.session_state:
+    st.session_state.temp_mask_input = ""
 
 # 页面路由
 if st.session_state.current_page == 'upload':
@@ -412,9 +388,11 @@ if st.session_state.current_page == 'upload':
         st.subheader("📷 底图（需要修改的图片）")
         base_image_file = st.file_uploader("上传底图", type=["png", "jpg", "jpeg"], key="base")
         
+        # 当上传新图片时，保存到session_state
         if base_image_file is not None:
             st.session_state.base_image = Image.open(base_image_file)
         
+        # 显示已保存的图片
         if st.session_state.base_image is not None:
             st.image(st.session_state.base_image, caption="底图", use_container_width=True)
             
@@ -433,9 +411,11 @@ if st.session_state.current_page == 'upload':
         st.subheader("🎨 参考图")
         ref_image_file = st.file_uploader("上传参考图", type=["png", "jpg", "jpeg"], key="ref")
         
+        # 当上传新图片时，保存到session_state
         if ref_image_file is not None:
             st.session_state.ref_image = Image.open(ref_image_file)
         
+        # 显示已保存的图片
         if st.session_state.ref_image is not None:
             st.image(st.session_state.ref_image, caption="参考图", use_container_width=True)
             
@@ -467,27 +447,41 @@ if st.session_state.current_page == 'upload':
             else:
                 with st.spinner("⏳ 正在生成图片，请稍候..."):
                     try:
+                        # 创建底图蒙版
                         base_mask = create_mask_from_points(
                             st.session_state.base_image.size, 
                             st.session_state.base_mask_points
                         )
                         
+                        # 创建参考图蒙版
                         ref_mask = create_mask_from_points(
                             st.session_state.ref_image.size, 
                             st.session_state.ref_mask_points
                         )
                         
                         if base_mask and ref_mask:
+                            # 将参考图调整为与底图相同的尺寸
                             ref_image_resized, ref_mask_resized = resize_reference_to_match_base(
                                 st.session_state.ref_image,
                                 ref_mask,
                                 st.session_state.base_image.size
                             )
                             
+                            # 转换为base64
                             base_image_data = image_to_base64(st.session_state.base_image)
                             base_mask_data = image_to_base64(base_mask)
                             ref_image_data = image_to_base64(ref_image_resized)
                             ref_mask_data = image_to_base64(ref_mask_resized)
+                            
+                            # 显示预处理信息
+                            with st.expander("🔍 查看预处理信息"):
+                                col_a, col_b = st.columns(2)
+                                with col_a:
+                                    st.write(f"**底图尺寸：** {st.session_state.base_image.size}")
+                                    st.write(f"**原参考图尺寸：** {st.session_state.ref_image.size}")
+                                with col_b:
+                                    st.write(f"**调整后参考图尺寸：** {ref_image_resized.size}")
+                                    st.success("✅ 参考图已调整为与底图相同尺寸")
                             
                             result_content = call_api_with_mask(
                                 api_key=API_KEY, base_url=BASE_URL, model=MODEL_NAME,
@@ -515,38 +509,40 @@ elif st.session_state.current_page == 'base_mask':
     
     if st.session_state.base_image:
         base_image_b64 = image_to_base64(st.session_state.base_image)
-        create_polygon_selector_with_clipboard(base_image_b64)
+        create_polygon_selector(base_image_b64)
         
         st.markdown("---")
-        st.info("⬆️ 请先在上方画布完成蒙版绘制并点击'确认蒙版并复制'，然后点击下方的'⚡ 一键保存'按钮")
+        st.info("⬆️ 在画布中点击添加顶点，点击'确认蒙版'后，将下方文本框中的内容复制粘贴到输入框")
+        
+        # 用户输入蒙版数据
+        mask_input = st.text_area(
+            "将上方显示的JSON数据粘贴到这里",
+            value=st.session_state.temp_mask_input,
+            height=100,
+            key="mask_input_base",
+            placeholder='[{"x":100,"y":200},{"x":300,"y":250}...]'
+        )
         
         col1, col2 = st.columns(2)
         
         with col1:
-            if st.button("⚡ 一键保存（自动读取剪贴板）", type="primary", use_container_width=True, key="auto_save_base"):
-                # 增加计数器以触发新的剪贴板读取
-                st.session_state.clipboard_counter += 1
-                
-                with st.spinner("🔄 正在从剪贴板读取数据..."):
-                    clipboard_data = read_clipboard_and_save('base')
-                    
-                    if clipboard_data and not clipboard_data.startswith("ERROR:"):
-                        try:
-                            points = json.loads(clipboard_data)
-                            if len(points) >= 3:
-                                st.session_state.base_mask_points = clipboard_data
-                                st.success(f"✅ 已自动保存{len(points)}个顶点！正在返回...")
-                                st.balloons()
-                                st.session_state.current_page = 'upload'
-                                st.rerun()
-                            else:
-                                st.error("❌ 剪贴板数据无效：至少需要3个顶点")
-                        except json.JSONDecodeError:
-                            st.error(f"❌ 剪贴板数据格式错误\n\n数据内容: {clipboard_data[:200]}")
-                    elif clipboard_data and clipboard_data.startswith("ERROR:"):
-                        st.error(f"❌ 读取剪贴板失败: {clipboard_data[6:]}\n\n💡 请确保在画布上点击了'确认蒙版并复制'按钮")
-                    else:
-                        st.warning("⚠️ 剪贴板为空或无法读取\n\n💡 请先在上方画布点击'确认蒙版并复制'")
+            if st.button("💾 保存蒙版", type="primary", use_container_width=True):
+                if mask_input and mask_input.strip():
+                    try:
+                        # 验证JSON格式
+                        points = json.loads(mask_input)
+                        if len(points) >= 3:
+                            st.session_state.base_mask_points = mask_input
+                            st.session_state.temp_mask_input = ""
+                            st.success(f"✅ 已保存{len(points)}个顶点！")
+                            st.session_state.current_page = 'upload'
+                            st.rerun()
+                        else:
+                            st.error("❌ 至少需要3个顶点")
+                    except json.JSONDecodeError:
+                        st.error("❌ JSON格式错误，请检查数据")
+                else:
+                    st.warning("⚠️ 请先在画布上确认蒙版，然后粘贴数据")
         
         with col2:
             if st.button("🔙 返回", use_container_width=True):
@@ -558,37 +554,40 @@ elif st.session_state.current_page == 'ref_mask':
     
     if st.session_state.ref_image:
         ref_image_b64 = image_to_base64(st.session_state.ref_image)
-        create_polygon_selector_with_clipboard(ref_image_b64)
+        create_polygon_selector(ref_image_b64)
         
         st.markdown("---")
-        st.info("⬆️ 请先在上方画布完成蒙版绘制并点击'确认蒙版并复制'，然后点击下方的'⚡ 一键保存'按钮")
+        st.info("⬆️ 在画布中点击添加顶点，点击'确认蒙版'后，将下方文本框中的内容复制粘贴到输入框")
+        
+        # 用户输入蒙版数据
+        mask_input = st.text_area(
+            "将上方显示的JSON数据粘贴到这里",
+            value=st.session_state.temp_mask_input,
+            height=100,
+            key="mask_input_ref",
+            placeholder='[{"x":100,"y":200},{"x":300,"y":250}...]'
+        )
         
         col1, col2 = st.columns(2)
         
         with col1:
-            if st.button("⚡ 一键保存（自动读取剪贴板）", type="primary", use_container_width=True, key="auto_save_ref"):
-                st.session_state.clipboard_counter += 1
-                
-                with st.spinner("🔄 正在从剪贴板读取数据..."):
-                    clipboard_data = read_clipboard_and_save('ref')
-                    
-                    if clipboard_data and not clipboard_data.startswith("ERROR:"):
-                        try:
-                            points = json.loads(clipboard_data)
-                            if len(points) >= 3:
-                                st.session_state.ref_mask_points = clipboard_data
-                                st.success(f"✅ 已自动保存{len(points)}个顶点！正在返回...")
-                                st.balloons()
-                                st.session_state.current_page = 'upload'
-                                st.rerun()
-                            else:
-                                st.error("❌ 剪贴板数据无效：至少需要3个顶点")
-                        except json.JSONDecodeError:
-                            st.error(f"❌ 剪贴板数据格式错误\n\n数据内容: {clipboard_data[:200]}")
-                    elif clipboard_data and clipboard_data.startswith("ERROR:"):
-                        st.error(f"❌ 读取剪贴板失败: {clipboard_data[6:]}\n\n💡 请确保在画布上点击了'确认蒙版并复制'按钮")
-                    else:
-                        st.warning("⚠️ 剪贴板为空或无法读取\n\n💡 请先在上方画布点击'确认蒙版并复制'")
+            if st.button("💾 保存蒙版", type="primary", use_container_width=True):
+                if mask_input and mask_input.strip():
+                    try:
+                        # 验证JSON格式
+                        points = json.loads(mask_input)
+                        if len(points) >= 3:
+                            st.session_state.ref_mask_points = mask_input
+                            st.session_state.temp_mask_input = ""
+                            st.success(f"✅ 已保存{len(points)}个顶点！")
+                            st.session_state.current_page = 'upload'
+                            st.rerun()
+                        else:
+                            st.error("❌ 至少需要3个顶点")
+                    except json.JSONDecodeError:
+                        st.error("❌ JSON格式错误，请检查数据")
+                else:
+                    st.warning("⚠️ 请先在画布上确认蒙版，然后粘贴数据")
         
         with col2:
             if st.button("🔙 返回", use_container_width=True):
@@ -598,25 +597,21 @@ elif st.session_state.current_page == 'ref_mask':
 # 使用说明
 with st.expander("📖 使用说明"):
     st.markdown("""
-    ### ⚡ 最新操作流程（超简化版）：
+    ### 操作步骤：
     
-    1. **上传底图和参考图**
-    2. **底图蒙版选择**：
-       - 点击"选择需要修改的区域"
-       - 在图片上添加顶点（至少3个点）
-       - 点击 "✅ 确认蒙版并复制"
-       - 点击 "⚡ 一键保存" → **自动完成读取+验证+保存+跳转**
-    3. **参考图蒙版选择** - 重复上述步骤
-    4. **生成图片**
+    1. **上传底图和参考图** - 图片会自动保存，切换页面后仍会显示
+    2. **点击选择需要修改的区域** - 进入底图蒙版选择页面
+       - 在图片上点击添加顶点（至少3个点）
+       - 点击"✅ 确认蒙版"按钮
+       - 复制下方显示的JSON数据
+       - 粘贴到输入框中，点击"💾 保存蒙版"
+    3. **点击选择参考区域** - 重复上述步骤
+    4. **填写修改说明并生成图片**
     
-    ### 🎯 核心改进：
-    - ✅ **真正的一键操作**：点击"一键保存"自动从剪贴板读取数据
-    - ✅ **零手动输入**：无需粘贴，无需输入框
-    - ✅ **自动验证**：自动检查数据有效性
-    - ✅ **自动跳转**：保存成功后自动返回主页
-    - ✅ **智能提示**：清晰的操作引导和错误提示
-    
-    ### 🚀 用户操作仅需2步：
-    1. 点击"确认蒙版并复制" 
-    2. 点击"一键保存"（完成所有后续操作）
+    ### ⭐ 重要改进：
+    - ✅ **输出图片严格保持底图的长宽比和尺寸**
+    - ✅ 参考图会自动调整为与底图相同尺寸，只提取风格信息
+    - ✅ 图片持久保存，切换页面不丢失
+    - ✅ 多边形自由选择，支持任意形状
+    - ✅ 实时可视化预览
     """)
