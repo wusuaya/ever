@@ -13,7 +13,7 @@ import streamlit as st
 # API配置
 API_KEY = "sk-wBuUIEArjm2BoTQBCQgzf2bhzksx87xg3pQ3cPsvccmULhAk"  # 请替换为你的实际API密钥
 BASE_URL = "https://api.sydney-ai.com/v1"  
-MODEL_NAME = "gemini-2.5-flash-image"  # 使用的模型名称
+MODEL_NAME = "gemini-2.5-flash-image-vip"  # 使用的模型名称
 
 # 提示词选项
 
@@ -21,6 +21,7 @@ MODEL_NAME = "gemini-2.5-flash-image"  # 使用的模型名称
 PROMPT_OPTIONS = {
     "黄昏街景": "你是lead8的设计总监，这是一张我简单渲染的图片，我需要你将他变成能够赢得国际竞赛的精致效果图，表达一个夜市热闹的氛围，丰富的人物活动，餐饮外摆，所有材质变为PBR材质效果，玻璃极具质感，店铺内布置也非常时尚与具有设计感，时刻定在偏黄昏的时刻，但是整体色调注意不要整体泛黄，需要有丰富的层次对比，针对近景的店铺可以改为完全打开的开放式设计，类似非常有个性的咖啡厅，形成非常舒适的室内外联通环境。外面的人行道可以增加来往的人群，路边可以增加一些行道树及绿植，但是树木不要对建筑形成大面积的遮挡，还是要突出建筑。目前的铺地还是太单调，需要增加质感及细节，可以考虑雨后湿润，有点反光的感觉",
     "写实风格": """将图片转化为建筑实景合成效果图，需要非常真实地表达周边环境，可以适当增加人，车，植物，等配景组合，使画面生动活泼，不同功能类型的建筑内部可以隐约看到室内的布置，修改后的效果图需要达到可以赢得国际竞赛的水平""",
+    "实景照片": """将图片转化为建筑摄影实景照片，需要达到可以登上世界建筑杂志的水平""",
 
     "冷淡风格": """Transform the input architectural model image into a high-end visualization in the style of MIR. 
 Cinematic, poetic atmosphere, storytelling mood. 
