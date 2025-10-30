@@ -4,26 +4,45 @@ import re
 import requests
 import json
 from datetime import datetime
+import time
 
 # ====================================
 # 配置
 # ====================================
 API_KEY = "sk-wBuUIEArjm2BoTQBCQgzf2bhzksx87xg3pQ3cPsvccmULhAk"
 BASE_URL = "https://api.sydney-ai.com/v1"
-MODEL_NAME = "gemini-2.5-flash-image-preview-vip"  # 已更新模型名称
+MODEL_NAME = "gemini-2.5-flash-image-hd"
+
+# 新增：轮询配置
+MAX_POLLING_ROUNDS = 30  # 最多轮询30次（从10次延长）
+POLLING_INTERVAL = 3  # 每次间隔3秒（从2秒延长）
 
 # ====================================
 # 辅助函数
 # ====================================
 
 def encode_image_to_base64(uploaded_file):
-    """将上传的文件转换为base64"""
+    """将上传的文件转换为base64 - 不进行压缩，保持原始大小"""
     bytes_data = uploaded_file.getvalue()
     encoded_data = base64.b64encode(bytes_data).decode("utf-8")
-    return f"data:image/png;base64,{encoded_data}"
+    
+    # 根据文件类型设置正确的MIME类型
+    file_type = uploaded_file.type
+    if not file_type:
+        # 如果无法获取类型，根据扩展名判断
+        if uploaded_file.name.lower().endswith('.png'):
+            file_type = 'image/png'
+        elif uploaded_file.name.lower().endswith(('.jpg', '.jpeg')):
+            file_type = 'image/jpeg'
+        elif uploaded_file.name.lower().endswith('.gif'):
+            file_type = 'image/gif'
+        else:
+            file_type = 'image/png'  # 默认
+    
+    return f"data:{file_type};base64,{encoded_data}"
 
 def extract_images_from_response(content):
-    """从响应中提取base64图片和URL"""
+    """从响应中提取base64图片和URL - 修改：同时返回URL和base64"""
     images = []
     
     # 提取base64图片
@@ -33,21 +52,22 @@ def extract_images_from_response(content):
     for match in base64_matches:
         try:
             base64_data = match.group(1)
-            images.append(('base64', base64_data))
+            images.append(('base64', base64_data, None))  # 添加None作为URL占位符
         except:
             pass
     
-    # 提取URL图片
-    url_pattern = r'https?://[^\s<>"]+\.(png|jpg|jpeg|gif)'
+    # 提取URL图片 - 修改：同时保存URL用于备用显示
+    url_pattern = r'https?://[^\s<>"]+\.(png|jpg|jpeg|gif|webp)'
     url_matches = re.finditer(url_pattern, content, re.IGNORECASE)
     
     for match in url_matches:
-        images.append(('url', match.group(0)))
+        url = match.group(0)
+        images.append(('url', None, url))  # URL类型，保存URL
     
     return images
 
 def call_api(messages, use_stream=True):
-    """调用API - 支持上下文"""
+    """调用API - 支持上下文 - 延长超时时间"""
     headers = {
         "Authorization": f"Bearer {API_KEY}",
         "Content-Type": "application/json"
@@ -62,7 +82,8 @@ def call_api(messages, use_stream=True):
     url = f"{BASE_URL}/chat/completions"
     
     try:
-        response = requests.post(url, headers=headers, json=data, timeout=120, stream=use_stream)
+        # 延长超时时间到180秒
+        response = requests.post(url, headers=headers, json=data, timeout=180, stream=use_stream)
         response.raise_for_status()
         
         if use_stream:
@@ -99,7 +120,7 @@ def build_api_messages():
             # 构建用户消息
             content_list = [{"type": "text", "text": msg["text"]}]
             
-            # 添加图片
+            # 添加图片（原始大小base64编码）
             if msg.get("image_base64"):
                 for img_b64 in msg["image_base64"]:
                     content_list.append({
@@ -120,16 +141,50 @@ def build_api_messages():
     
     return api_messages
 
+def wait_for_images_with_polling(response_images, placeholder):
+    """轮询等待图片加载 - 延长等待时间和轮次"""
+    if not response_images:
+        return response_images
+    
+    updated_images = []
+    
+    for img_type, img_data, img_url in response_images:
+        if img_type == 'url' and img_url:
+            # 对URL图片进行轮询检查
+            placeholder.info(f"⏳ 正在等待图片加载... (最多等待 {MAX_POLLING_ROUNDS * POLLING_INTERVAL} 秒)")
+            
+            image_loaded = False
+            for round_num in range(MAX_POLLING_ROUNDS):
+                try:
+                    response = requests.head(img_url, timeout=5)
+                    if response.status_code == 200:
+                        image_loaded = True
+                        placeholder.success(f"✅ 图片加载成功！(第 {round_num + 1} 次尝试)")
+                        break
+                except:
+                    pass
+                
+                if round_num < MAX_POLLING_ROUNDS - 1:
+                    time.sleep(POLLING_INTERVAL)
+            
+            if not image_loaded:
+                placeholder.warning(f"⚠️ 图片可能需要更长时间加载，已提供URL备用")
+            
+            updated_images.append(('url', img_data, img_url))
+        else:
+            updated_images.append((img_type, img_data, img_url))
+    
+    return updated_images
+
 # ====================================
 # Streamlit 应用
 # ====================================
 
 st.set_page_config(page_title="AI 图片对话助手", page_icon="🤖", layout="wide")
 
-# 自定义CSS - 缩小图片预览
+# 自定义CSS
 st.markdown("""
 <style>
-    /* 缩小上传图片预览的尺寸 */
     .thumbnail-container img {
         max-width: 80px !important;
         max-height: 80px !important;
@@ -137,21 +192,29 @@ st.markdown("""
         border-radius: 8px;
     }
     
-    /* 调整文件上传器样式 */
     [data-testid="stFileUploader"] {
         padding: 8px 0px;
     }
     
-    /* 让输入区域固定在底部 */
     .stChatFloatingInputContainer {
         bottom: 0;
         position: sticky;
+    }
+    
+    .image-url-box {
+        background-color: #f0f2f6;
+        padding: 10px;
+        border-radius: 5px;
+        margin: 10px 0;
+        font-family: monospace;
+        font-size: 12px;
+        word-break: break-all;
     }
 </style>
 """, unsafe_allow_html=True)
 
 st.title("🤖 AI 图片对话助手HD测试")
-st.markdown("支持文字和图片的多模态对话，保留完整上下文")
+st.markdown("支持文字和图片的多模态对话，保留完整上下文 | 原始图片质量上传")
 
 # 初始化session state
 if "messages" not in st.session_state:
@@ -160,7 +223,7 @@ if "messages" not in st.session_state:
 if "temp_images" not in st.session_state:
     st.session_state.temp_images = []
 
-# 侧边栏 - 只保留清空按钮
+# 侧边栏
 with st.sidebar:
     st.header("⚙️ 设置")
     
@@ -172,6 +235,7 @@ with st.sidebar:
     st.divider()
     st.caption(f"💬 当前对话轮数: {len(st.session_state.messages)}")
     st.caption(f"🤖 模型: {MODEL_NAME}")
+    st.caption(f"⏱️ 图片等待: {MAX_POLLING_ROUNDS}轮 × {POLLING_INTERVAL}秒")
 
 # 显示对话历史
 for message in st.session_state.messages:
@@ -187,26 +251,29 @@ for message in st.session_state.messages:
                 with cols[idx % 3]:
                     st.image(img_data, use_column_width=True)
         
-        # 显示AI返回的图片
+        # 显示AI返回的图片 - 修改：同时显示URL
         if message.get("response_images") and message["role"] == "assistant":
-            for img_type, img_data in message["response_images"]:
-                if img_type == 'base64':
+            for img_type, img_data, img_url in message["response_images"]:
+                if img_type == 'base64' and img_data:
                     try:
                         st.image(base64.b64decode(img_data), use_column_width=True)
                     except:
-                        pass
-                elif img_type == 'url':
-                    st.image(img_data, use_column_width=True)
+                        st.error("图片解码失败")
+                elif img_type == 'url' and img_url:
+                    # 显示图片
+                    st.image(img_url, use_column_width=True)
+                    # 显示URL作为备用
+                    st.markdown(f'<div class="image-url-box">🔗 图片URL: {img_url}</div>', unsafe_allow_html=True)
 
-# 创建底部容器（包含图片上传和输入框）
+# 创建底部容器
 st.markdown("---")
 
-# 图片上传区域（紧贴输入框上方）
+# 图片上传区域
 col1, col2 = st.columns([4, 1])
 
 with col1:
     uploaded_files = st.file_uploader(
-        "📎 上传图片", 
+        "📎 上传图片（原始质量）", 
         type=['png', 'jpg', 'jpeg', 'gif'],
         accept_multiple_files=True,
         key="file_uploader",
@@ -217,7 +284,7 @@ with col2:
     if uploaded_files:
         st.caption(f"✅ {len(uploaded_files)} 张")
 
-# 显示缩略图预览（小尺寸）
+# 显示缩略图预览
 if uploaded_files:
     st.markdown('<div class="thumbnail-container">', unsafe_allow_html=True)
     cols = st.columns(min(len(uploaded_files), 8))
@@ -233,12 +300,13 @@ if prompt:
     # 构建消息内容
     content_list = [{"type": "text", "text": prompt}]
     
-    # 处理上传的图片
+    # 处理上传的图片 - 修改：不压缩，原始大小编码
     uploaded_images = []
     image_base64_list = []
     
     if uploaded_files:
         for uploaded_file in uploaded_files:
+            # 原始大小编码，不压缩
             image_data = encode_image_to_base64(uploaded_file)
             image_base64_list.append(image_data)
             uploaded_images.append(uploaded_file.getvalue())
@@ -260,8 +328,10 @@ if prompt:
                 with cols[idx % 3]:
                     st.image(img_data, use_column_width=True)
     
-    # 调用API（包含完整上下文）
+    # 调用API
     with st.chat_message("assistant"):
+        status_placeholder = st.empty()
+        
         with st.spinner("AI正在思考..."):
             # 构建包含上下文的API消息
             api_messages = build_api_messages()
@@ -273,26 +343,35 @@ if prompt:
                 # 提取图片
                 response_images = extract_images_from_response(response_content)
                 
-                # 清理文本内容（移除base64数据）
+                # 如果有图片，进行轮询等待
+                if response_images:
+                    response_images = wait_for_images_with_polling(response_images, status_placeholder)
+                
+                status_placeholder.empty()
+                
+                # 清理文本内容
                 clean_text = re.sub(r'data:image/[^;]+;base64,[A-Za-z0-9+/=]+', '', response_content)
-                clean_text = re.sub(r'https?://[^\s<>"]+\.(png|jpg|jpeg|gif)', '', clean_text, flags=re.IGNORECASE)
+                clean_text = re.sub(r'https?://[^\s<>"]+\.(png|jpg|jpeg|gif|webp)', '', clean_text, flags=re.IGNORECASE)
                 clean_text = clean_text.strip()
                 
                 # 显示文本
                 if clean_text:
                     st.markdown(clean_text)
                 
-                # 显示图片
+                # 显示图片和URL
                 if response_images:
                     st.success(f"生成了 {len(response_images)} 张图片")
-                    for img_type, img_data in response_images:
-                        if img_type == 'base64':
+                    for img_type, img_data, img_url in response_images:
+                        if img_type == 'base64' and img_data:
                             try:
                                 st.image(base64.b64decode(img_data), use_column_width=True)
                             except Exception as e:
                                 st.error(f"图片显示失败: {str(e)}")
-                        elif img_type == 'url':
-                            st.image(img_data, use_column_width=True)
+                        elif img_type == 'url' and img_url:
+                            # 显示图片
+                            st.image(img_url, use_column_width=True)
+                            # 显示URL作为备用
+                            st.markdown(f'<div class="image-url-box">🔗 图片URL: {img_url}</div>', unsafe_allow_html=True)
                 
                 # 添加助手消息到历史
                 st.session_state.messages.append({
@@ -305,4 +384,4 @@ if prompt:
     st.rerun()
 
 # 页脚信息
-st.caption("💡 提示: 可以上传图片配合文字提问，AI会记住之前的所有对话内容")
+st.caption("💡 提示: 可以上传原始质量图片配合文字提问，AI会记住之前的所有对话内容")
