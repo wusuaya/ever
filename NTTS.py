@@ -10,7 +10,7 @@ st.set_page_config(page_title="A股板块热度分析", layout="wide")
 st.title("🔥 A股板块热度分析与NTTS关联")
 
 # NTTS文件完整路径（固定文件名）
-NTTS_FILE = Path(__file__).parent / "NTTS筛选统计.xlsx"
+NTTS_FILE = "NTTS筛选统计.xlsx"
 
 # ==================== 数据获取函数 ====================
 
